@@ -57,7 +57,7 @@ O cliente informa o **nome e o WhatsApp** usados na reserva e vê os próximos h
 
 - A busca só devolve agendamentos em que o telefone **e** o primeiro nome batem (sem diferenciar maiúsculas e acentos).
 - E-mail e dados de outros clientes nunca aparecem.
-- O navegador lembra nome, WhatsApp e e-mail no mesmo aparelho, então a lista abre sozinha nas próximas visitas.
+- O navegador lembra nome, WhatsApp e e-mail no mesmo aparelho, então a lista abre sozinha nas próximas visitas. Ao clicar em **Fazer novo agendamento**, o formulário volta vazio e esses dados lembrados são apagados, o que evita que o próximo cliente de um aparelho compartilhado veja dados alheios.
 
 ## Arquitetura
 

@@ -71,6 +71,14 @@ function loadSaved(): void {
   }
 }
 
+function clearSavedClient(): void {
+  try {
+    localStorage.removeItem(STORE_KEY);
+  } catch {
+    // Sem armazenamento disponível: não há nada para apagar.
+  }
+}
+
 function saveClient(): void {
   try {
     localStorage.setItem(STORE_KEY, JSON.stringify({ name: state.name, phone: state.phone, email: state.email }));
@@ -556,8 +564,12 @@ function phoneField(): HTMLElement {
   });
 }
 
-/** Começa outro agendamento mantendo os dados do cliente já preenchidos. */
+/** Começa um agendamento do zero: formulário vazio e nada lembrado neste aparelho. */
 function restart(): void {
+  state.name = "";
+  state.phone = "";
+  state.email = "";
+  clearSavedClient();
   state.pro = null;
   state.selected.clear();
   state.date = null;

@@ -12,6 +12,11 @@ interface Info {
 interface ApiError { error?: string; fields?: Record<string, string> }
 interface SlotsResponse extends ApiError { times?: string[] }
 interface BookResponse extends ApiError { ok?: boolean; whatsapp_sent?: boolean; whatsapp_link?: string }
+interface MyBooking {
+  id: number; date: string; weekday: string; dm: string; time: string; minutes: number;
+  professional: string; services: string[]; total: number;
+}
+interface MyResponse extends ApiError { bookings?: MyBooking[] }
 
 const MONTHS = [
   "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
@@ -21,6 +26,8 @@ const WEEKDAYS = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
 const STEPS = ["Seus dados", "Barbeiro", "Serviços", "Data e horário", "Confirmação"];
 const LAST = STEPS.length - 1;
 const DONE = STEPS.length;
+const MINE = STEPS.length + 1;
+const STORE_KEY = "agenda.cliente";
 
 const $ = <T extends HTMLElement>(id: string): T => {
   const el = document.getElementById(id);
@@ -48,6 +55,29 @@ const state = {
   busy: false,
 };
 let info: Info;
+let redirectTimer: number | undefined;
+
+/** Lembra nome, WhatsApp e e-mail neste aparelho para preencher e consultar depois. */
+function loadSaved(): void {
+  try {
+    const raw = localStorage.getItem(STORE_KEY);
+    if (!raw) return;
+    const v = JSON.parse(raw) as Record<string, unknown>;
+    if (typeof v.name === "string") state.name = v.name;
+    if (typeof v.phone === "string") state.phone = v.phone;
+    if (typeof v.email === "string") state.email = v.email;
+  } catch {
+    // Sem armazenamento disponível: segue sem lembrar.
+  }
+}
+
+function saveClient(): void {
+  try {
+    localStorage.setItem(STORE_KEY, JSON.stringify({ name: state.name, phone: state.phone, email: state.email }));
+  } catch {
+    // Ignora: o agendamento já foi salvo no servidor.
+  }
+}
 
 /* ---------- Utilidades ---------- */
 
@@ -89,6 +119,12 @@ function maskPhone(value: string): string {
   return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`;
 }
 
+function actionBtn(label: string, cls: string, fn: () => void): HTMLButtonElement {
+  const b = h("button", { type: "button", class: cls }, label);
+  b.addEventListener("click", fn);
+  return b;
+}
+
 const chosenServices = (): Service[] => info.services.filter((s) => state.selected.has(s.id));
 const totals = (): { minutes: number; price: number } => {
   const c = chosenServices();
@@ -120,14 +156,19 @@ function updateNav(): void {
 }
 
 function renderProgress(): void {
-  const label = state.step >= DONE ? "Agendamento concluído" : `Etapa ${state.step + 1} de ${STEPS.length} · ${STEPS[state.step]}`;
+  const mine = state.step === MINE;
+  const label = mine
+    ? "Meus agendamentos"
+    : state.step >= DONE ? "Agendamento concluído" : `Etapa ${state.step + 1} de ${STEPS.length} · ${STEPS[state.step]}`;
   progressEl.replaceChildren(
     h("p", { class: "progress-label" }, label),
-    h("div", { class: "bars" }, ...STEPS.map((_, i) => h("span", { class: i <= state.step ? "on" : "" }))),
+    h("div", { class: "bars" }, ...STEPS.map((_, i) => h("span", { class: !mine && i <= state.step ? "on" : "" }))),
   );
 }
 
 function render(): void {
+  window.clearTimeout(redirectTimer);
+  navEl.hidden = false;
   renderProgress();
   stage.replaceChildren();
   flash("");
@@ -201,17 +242,8 @@ function field(o: FieldOpts): HTMLElement {
 function stepData(): void {
   stage.append(
     h("h2", {}, "Vamos começar! Como podemos te chamar?"),
-    field({
-      id: "name", label: "Seu nome", ph: "Nome completo", auto: "name", value: state.name,
-      hint: (v) => (validName(v) ? "" : "Informe pelo menos 3 letras."),
-      set: (v) => { state.name = v; },
-    }),
-    field({
-      id: "phone", label: "Seu WhatsApp com DDD", ph: "(22) 99999-9999", type: "tel", mode: "tel", auto: "tel",
-      value: state.phone, mask: maskPhone,
-      hint: (v) => (validPhone(v) ? "" : "Número incompleto. Use DDD + número."),
-      set: (v) => { state.phone = v; },
-    }),
+    nameField(),
+    phoneField(),
     field({
       id: "email", label: "Seu e-mail", optional: true, ph: "seu@email.com", type: "email", mode: "email", auto: "email",
       value: state.email,
@@ -219,6 +251,7 @@ function stepData(): void {
       set: (v) => { state.email = v; },
     }),
     h("p", { class: "note" }, "🔒 Seus dados são usados só para marcar o horário."),
+    actionBtn("Já tenho agendamento: ver meus agendamentos", "link-btn", showMine),
   );
 }
 
@@ -465,6 +498,7 @@ async function submit(): Promise<void> {
       flash(data.error ?? "Não foi possível concluir o agendamento. Tente novamente.");
       return;
     }
+    saveClient();
     showDone(data);
   } catch {
     state.busy = false;
@@ -491,14 +525,99 @@ function showDone(data: BookResponse): void {
       !data.whatsapp_sent && link
         ? h("a", { class: "wa-btn", href: link, target: "_blank", rel: "noopener" }, "Abrir WhatsApp do barbeiro")
         : false,
+      actionBtn("Fazer novo agendamento", "ghost wide", restart),
+      actionBtn("Ver meus agendamentos", "link-btn", showMine),
     ),
   );
   window.scrollTo({ top: 0 });
 
   // Em tela cheia, abre o WhatsApp sozinho. Dentro de um quadro (pré-visualização) só mostra o botão.
   if (!data.whatsapp_sent && link && window.top === window.self) {
-    window.setTimeout(() => window.location.assign(link), 900);
+    redirectTimer = window.setTimeout(() => window.location.assign(link), 900);
   }
+}
+
+/* ---------- Novo agendamento e Meus agendamentos ---------- */
+
+function nameField(): HTMLElement {
+  return field({
+    id: "name", label: "Seu nome", ph: "Nome completo", auto: "name", value: state.name,
+    hint: (v) => (validName(v) ? "" : "Informe pelo menos 3 letras."),
+    set: (v) => { state.name = v; },
+  });
+}
+
+function phoneField(): HTMLElement {
+  return field({
+    id: "phone", label: "Seu WhatsApp com DDD", ph: "(22) 99999-9999", type: "tel", mode: "tel", auto: "tel",
+    value: state.phone, mask: maskPhone,
+    hint: (v) => (validPhone(v) ? "" : "Número incompleto. Use DDD + número."),
+    set: (v) => { state.phone = v; },
+  });
+}
+
+/** Começa outro agendamento mantendo os dados do cliente já preenchidos. */
+function restart(): void {
+  state.pro = null;
+  state.selected.clear();
+  state.date = null;
+  state.time = null;
+  state.month = "";
+  state.step = 0;
+  render();
+}
+
+function bookingCard(b: MyBooking): HTMLElement {
+  return h("div", { class: "mine-card" },
+    h("strong", {}, `${cap(b.weekday)}, ${b.dm} às ${b.time}`),
+    h("span", {}, b.services.join(" + ")),
+    h("span", { class: "muted" }, `${b.professional} · ${b.minutes} min · ${brl(b.total)}`),
+  );
+}
+
+function showMine(): void {
+  window.clearTimeout(redirectTimer);
+  slotToken++;
+  state.step = MINE;
+  renderProgress();
+  flash("");
+  navEl.hidden = true;
+
+  const results = h("div", { class: "mine-list" });
+  const run = async (): Promise<void> => {
+    if (!validName(state.name) || !validPhone(state.phone)) {
+      results.replaceChildren(h("p", { class: "err" }, "Informe seu nome e WhatsApp para buscar."));
+      return;
+    }
+    results.replaceChildren(h("p", { class: "muted" }, "Buscando seus agendamentos..."));
+    try {
+      const q = new URLSearchParams({ phone: digits(state.phone), name: state.name });
+      const res = await fetch(`api/my.php?${q.toString()}`);
+      const data = (await res.json()) as MyResponse;
+      if (!res.ok) {
+        results.replaceChildren(h("p", { class: "err" }, data.error ?? "Não foi possível buscar agora."));
+        return;
+      }
+      const list = data.bookings ?? [];
+      results.replaceChildren(...(list.length
+        ? list.map(bookingCard)
+        : [h("p", { class: "muted" }, "Não encontramos agendamentos futuros com esse nome e WhatsApp.")]));
+    } catch {
+      results.replaceChildren(h("p", { class: "err" }, "Falha de conexão. Tente novamente."));
+    }
+  };
+
+  stage.replaceChildren(
+    h("h2", {}, "Meus agendamentos"),
+    h("p", { class: "muted" }, "Digite o nome e o WhatsApp usados no agendamento."),
+    nameField(),
+    phoneField(),
+    actionBtn("Ver meus agendamentos", "primary wide", () => { void run(); }),
+    results,
+    actionBtn("Fazer novo agendamento", "ghost wide", restart),
+  );
+  window.scrollTo({ top: 0 });
+  if (validName(state.name) && validPhone(state.phone)) void run();
 }
 
 /* ---------- Início ---------- */
@@ -509,6 +628,7 @@ async function init(): Promise<void> {
   $("shop-name").textContent = info.shop_name;
   $("avatar").textContent = initials(info.shop_name);
   document.title = `Agendar - ${info.shop_name}`;
+  loadSaved();
   render();
 }
 

@@ -290,3 +290,24 @@ function send_whatsapp(string $number, string $message): bool
     curl_close($ch);
     return $code >= 200 && $code < 300;
 }
+
+/* ---------- Comparação de nomes ---------- */
+
+/** Minúsculas e sem acentos, para comparar nomes digitados de jeitos diferentes. */
+function fold_text(string $s): string
+{
+    $s = mb_strtolower(trim($s), 'UTF-8');
+    return strtr($s, [
+        'á' => 'a', 'à' => 'a', 'â' => 'a', 'ã' => 'a', 'ä' => 'a',
+        'é' => 'e', 'è' => 'e', 'ê' => 'e', 'ë' => 'e',
+        'í' => 'i', 'ì' => 'i', 'î' => 'i', 'ï' => 'i',
+        'ó' => 'o', 'ò' => 'o', 'ô' => 'o', 'õ' => 'o', 'ö' => 'o',
+        'ú' => 'u', 'ù' => 'u', 'û' => 'u', 'ü' => 'u', 'ç' => 'c',
+    ]);
+}
+
+function first_name_fold(string $s): string
+{
+    $parts = preg_split('/\s+/', fold_text($s));
+    return $parts[0] ?? '';
+}

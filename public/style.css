@@ -147,6 +147,20 @@ button:disabled { cursor: not-allowed; }
   background: var(--accent); color: var(--accent-ink); font-weight: 700; text-decoration: none;
 }
 
+.wide { width: 100%; max-width: none; flex: none; }
+.link-btn {
+  background: none; border: 0; padding: 8px 0; color: var(--accent);
+  font-weight: 600; text-align: center; text-decoration: underline; text-underline-offset: 3px;
+}
+
+/* Meus agendamentos */
+.mine-list { display: grid; gap: 10px; }
+.mine-card {
+  display: grid; gap: 2px; padding: 12px 14px;
+  background: var(--card); border: 1px solid var(--line); border-radius: 12px;
+}
+.mine-card strong { color: var(--accent); }
+
 /* Rodapé de navegação */
 .flash { margin: 0; padding: 0 16px; min-height: 0; color: var(--danger); font-size: .9rem; }
 .flash:empty { display: none; }

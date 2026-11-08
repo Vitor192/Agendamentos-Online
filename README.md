@@ -10,6 +10,12 @@ PHP (backend + SQLite) · TypeScript compilado para JavaScript (frontend).
 4. **Data e horário:** calendário de dias de atendimento (padrão seg-sex) e horários livres.
 5. **Confirmação:** resumo com todos os dados. Ao confirmar, o horário é reservado e o **WhatsApp do barbeiro abre com a mensagem pronta**.
 
+Na tela final há os botões **Fazer novo agendamento** e **Ver meus agendamentos**. A consulta também está na primeira tela.
+
+## Meus agendamentos
+
+O cliente informa o **nome e o WhatsApp** usados na reserva e vê os próximos horários dele. A busca só devolve agendamentos em que o telefone e o primeiro nome (sem diferenciar maiúsculas e acentos) batem. E-mail e dados de outros clientes nunca aparecem. O navegador também lembra nome, WhatsApp e e-mail, então no mesmo aparelho a lista já abre sozinha.
+
 ## Regras da agenda
 
 - O horário de início só aparece se o atendimento inteiro cabe no expediente, fora do almoço e sem encostar em outro agendamento do mesmo barbeiro.
@@ -28,6 +34,7 @@ public/             única pasta que deve ficar acessível na web
   api/info.php      GET  barbeiros, serviços e dias disponíveis
   api/slots.php     GET  horários livres (data + barbeiro + serviços)
   api/book.php      POST cria o agendamento
+  api/my.php        GET  próximos agendamentos (telefone + nome)
 src/app.ts          código TypeScript do frontend
 preview.html        pré-visualização sem PHP (dados simulados no navegador)
 data/               banco SQLite, criado automaticamente

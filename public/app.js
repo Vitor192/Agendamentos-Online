@@ -8,6 +8,8 @@ const WEEKDAYS = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
 const STEPS = ["Seus dados", "Barbeiro", "Serviços", "Data e horário", "Confirmação"];
 const LAST = STEPS.length - 1;
 const DONE = STEPS.length;
+const MINE = STEPS.length + 1;
+const STORE_KEY = "agenda.cliente";
 const $ = (id) => {
     const el = document.getElementById(id);
     if (!el)
@@ -33,6 +35,33 @@ const state = {
     busy: false,
 };
 let info;
+let redirectTimer;
+/** Lembra nome, WhatsApp e e-mail neste aparelho para preencher e consultar depois. */
+function loadSaved() {
+    try {
+        const raw = localStorage.getItem(STORE_KEY);
+        if (!raw)
+            return;
+        const v = JSON.parse(raw);
+        if (typeof v.name === "string")
+            state.name = v.name;
+        if (typeof v.phone === "string")
+            state.phone = v.phone;
+        if (typeof v.email === "string")
+            state.email = v.email;
+    }
+    catch {
+        // Sem armazenamento disponível: segue sem lembrar.
+    }
+}
+function saveClient() {
+    try {
+        localStorage.setItem(STORE_KEY, JSON.stringify({ name: state.name, phone: state.phone, email: state.email }));
+    }
+    catch {
+        // Ignora: o agendamento já foi salvo no servidor.
+    }
+}
 function h(tag, props = {}, ...kids) {
     const el = document.createElement(tag);
     for (const [k, v] of Object.entries(props)) {
@@ -68,6 +97,11 @@ function maskPhone(value) {
         return `(${d.slice(0, 2)}) ${d.slice(2, 6)}-${d.slice(6)}`;
     return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`;
 }
+function actionBtn(label, cls, fn) {
+    const b = h("button", { type: "button", class: cls }, label);
+    b.addEventListener("click", fn);
+    return b;
+}
 const chosenServices = () => info.services.filter((s) => state.selected.has(s.id));
 const totals = () => {
     const c = chosenServices();
@@ -94,10 +128,15 @@ function updateNav() {
     nextBtn.textContent = state.step === LAST ? "Confirmar agendamento" : "Próximo";
 }
 function renderProgress() {
-    const label = state.step >= DONE ? "Agendamento concluído" : `Etapa ${state.step + 1} de ${STEPS.length} · ${STEPS[state.step]}`;
-    progressEl.replaceChildren(h("p", { class: "progress-label" }, label), h("div", { class: "bars" }, ...STEPS.map((_, i) => h("span", { class: i <= state.step ? "on" : "" }))));
+    const mine = state.step === MINE;
+    const label = mine
+        ? "Meus agendamentos"
+        : state.step >= DONE ? "Agendamento concluído" : `Etapa ${state.step + 1} de ${STEPS.length} · ${STEPS[state.step]}`;
+    progressEl.replaceChildren(h("p", { class: "progress-label" }, label), h("div", { class: "bars" }, ...STEPS.map((_, i) => h("span", { class: !mine && i <= state.step ? "on" : "" }))));
 }
 function render() {
+    window.clearTimeout(redirectTimer);
+    navEl.hidden = false;
     renderProgress();
     stage.replaceChildren();
     flash("");
@@ -149,21 +188,12 @@ function field(o) {
     return h("label", { class: "field", for: o.id }, h("span", {}, o.label, o.optional ? h("span", { class: "opt-tag" }, " (opcional)") : false), input, hint);
 }
 function stepData() {
-    stage.append(h("h2", {}, "Vamos começar! Como podemos te chamar?"), field({
-        id: "name", label: "Seu nome", ph: "Nome completo", auto: "name", value: state.name,
-        hint: (v) => (validName(v) ? "" : "Informe pelo menos 3 letras."),
-        set: (v) => { state.name = v; },
-    }), field({
-        id: "phone", label: "Seu WhatsApp com DDD", ph: "(22) 99999-9999", type: "tel", mode: "tel", auto: "tel",
-        value: state.phone, mask: maskPhone,
-        hint: (v) => (validPhone(v) ? "" : "Número incompleto. Use DDD + número."),
-        set: (v) => { state.phone = v; },
-    }), field({
+    stage.append(h("h2", {}, "Vamos começar! Como podemos te chamar?"), nameField(), phoneField(), field({
         id: "email", label: "Seu e-mail", optional: true, ph: "seu@email.com", type: "email", mode: "email", auto: "email",
         value: state.email,
         hint: (v) => (validEmail(v) ? "" : "Esse e-mail não parece certo."),
         set: (v) => { state.email = v; },
-    }), h("p", { class: "note" }, "🔒 Seus dados são usados só para marcar o horário."));
+    }), h("p", { class: "note" }, "🔒 Seus dados são usados só para marcar o horário."), actionBtn("Já tenho agendamento: ver meus agendamentos", "link-btn", showMine));
 }
 /* ---------- Etapa 2: barbeiro ---------- */
 function stepPro() {
@@ -371,6 +401,7 @@ async function submit() {
             flash(data.error ?? "Não foi possível concluir o agendamento. Tente novamente.");
             return;
         }
+        saveClient();
         showDone(data);
     }
     catch {
@@ -390,12 +421,77 @@ function showDone(data) {
         ? "O barbeiro já foi avisado pelo WhatsApp. Te esperamos!"
         : "Falta só enviar a confirmação ao barbeiro pelo WhatsApp."), card, !data.whatsapp_sent && link
         ? h("a", { class: "wa-btn", href: link, target: "_blank", rel: "noopener" }, "Abrir WhatsApp do barbeiro")
-        : false));
+        : false, actionBtn("Fazer novo agendamento", "ghost wide", restart), actionBtn("Ver meus agendamentos", "link-btn", showMine)));
     window.scrollTo({ top: 0 });
     // Em tela cheia, abre o WhatsApp sozinho. Dentro de um quadro (pré-visualização) só mostra o botão.
     if (!data.whatsapp_sent && link && window.top === window.self) {
-        window.setTimeout(() => window.location.assign(link), 900);
+        redirectTimer = window.setTimeout(() => window.location.assign(link), 900);
     }
+}
+/* ---------- Novo agendamento e Meus agendamentos ---------- */
+function nameField() {
+    return field({
+        id: "name", label: "Seu nome", ph: "Nome completo", auto: "name", value: state.name,
+        hint: (v) => (validName(v) ? "" : "Informe pelo menos 3 letras."),
+        set: (v) => { state.name = v; },
+    });
+}
+function phoneField() {
+    return field({
+        id: "phone", label: "Seu WhatsApp com DDD", ph: "(22) 99999-9999", type: "tel", mode: "tel", auto: "tel",
+        value: state.phone, mask: maskPhone,
+        hint: (v) => (validPhone(v) ? "" : "Número incompleto. Use DDD + número."),
+        set: (v) => { state.phone = v; },
+    });
+}
+/** Começa outro agendamento mantendo os dados do cliente já preenchidos. */
+function restart() {
+    state.pro = null;
+    state.selected.clear();
+    state.date = null;
+    state.time = null;
+    state.month = "";
+    state.step = 0;
+    render();
+}
+function bookingCard(b) {
+    return h("div", { class: "mine-card" }, h("strong", {}, `${cap(b.weekday)}, ${b.dm} às ${b.time}`), h("span", {}, b.services.join(" + ")), h("span", { class: "muted" }, `${b.professional} · ${b.minutes} min · ${brl(b.total)}`));
+}
+function showMine() {
+    window.clearTimeout(redirectTimer);
+    slotToken++;
+    state.step = MINE;
+    renderProgress();
+    flash("");
+    navEl.hidden = true;
+    const results = h("div", { class: "mine-list" });
+    const run = async () => {
+        if (!validName(state.name) || !validPhone(state.phone)) {
+            results.replaceChildren(h("p", { class: "err" }, "Informe seu nome e WhatsApp para buscar."));
+            return;
+        }
+        results.replaceChildren(h("p", { class: "muted" }, "Buscando seus agendamentos..."));
+        try {
+            const q = new URLSearchParams({ phone: digits(state.phone), name: state.name });
+            const res = await fetch(`api/my.php?${q.toString()}`);
+            const data = (await res.json());
+            if (!res.ok) {
+                results.replaceChildren(h("p", { class: "err" }, data.error ?? "Não foi possível buscar agora."));
+                return;
+            }
+            const list = data.bookings ?? [];
+            results.replaceChildren(...(list.length
+                ? list.map(bookingCard)
+                : [h("p", { class: "muted" }, "Não encontramos agendamentos futuros com esse nome e WhatsApp.")]));
+        }
+        catch {
+            results.replaceChildren(h("p", { class: "err" }, "Falha de conexão. Tente novamente."));
+        }
+    };
+    stage.replaceChildren(h("h2", {}, "Meus agendamentos"), h("p", { class: "muted" }, "Digite o nome e o WhatsApp usados no agendamento."), nameField(), phoneField(), actionBtn("Ver meus agendamentos", "primary wide", () => { void run(); }), results, actionBtn("Fazer novo agendamento", "ghost wide", restart));
+    window.scrollTo({ top: 0 });
+    if (validName(state.name) && validPhone(state.phone))
+        void run();
 }
 /* ---------- Início ---------- */
 async function init() {
@@ -404,6 +500,7 @@ async function init() {
     $("shop-name").textContent = info.shop_name;
     $("avatar").textContent = initials(info.shop_name);
     document.title = `Agendar - ${info.shop_name}`;
+    loadSaved();
     render();
 }
 init().catch(() => {

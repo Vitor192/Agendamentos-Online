@@ -2,28 +2,20 @@
 declare(strict_types=1);
 require __DIR__ . '/../../lib.php';
 
-// GET /api/slots.php?date=YYYY-MM-DD
-// Devolve todos os horários do dia e se cada um está disponível.
+// GET /api/slots.php?date=YYYY-MM-DD&professional=1&services=1,3
+// Devolve só os horários de início livres para esse profissional e esses serviços.
 $date = parse_date((string)($_GET['date'] ?? ''));
-if (!$date) {
-    json_response(['error' => 'Data inválida.'], 400);
-}
-if (!is_bookable_date($date)) {
+if (!$date || !is_bookable_date($date)) {
     json_response(['error' => 'Data indisponível para agendamento.'], 422);
 }
-
-$ymd    = $date->format('Y-m-d');
-$booked = booked_times($ymd);
-$now    = new DateTimeImmutable();
-$isToday = $ymd === $now->format('Y-m-d');
-
-$slots = [];
-foreach (day_slots() as $time) {
-    $past = $isToday && $time <= $now->format('H:i');
-    $slots[] = [
-        'time'      => $time,
-        'available' => !$past && !in_array($time, $booked, true),
-    ];
+$prof = find_professional((int)($_GET['professional'] ?? 0));
+if (!$prof) {
+    json_response(['error' => 'Profissional inválido.'], 422);
+}
+$services = find_services(parse_service_ids($_GET['services'] ?? ''));
+if (!$services) {
+    json_response(['error' => 'Escolha ao menos um serviço válido.'], 422);
 }
 
-json_response(['date' => $ymd, 'slots' => $slots]);
+$duration = array_sum(array_column($services, 'minutes'));
+json_response(['times' => available_starts($date->format('Y-m-d'), $prof['id'], $duration)]);

@@ -2,63 +2,32 @@
 <html lang="pt-BR">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Agende seu horário</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#14110f">
+  <title>Agendar horário</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <main class="app">
-    <header>
-      <h1 id="shop-name">Barbearia</h1>
-      <p>Escolha o dia e o horário do seu corte.</p>
+  <div class="app">
+    <header class="top">
+      <div class="avatar" id="avatar" aria-hidden="true">B</div>
+      <div class="who">
+        <strong id="shop-name">Barbearia</strong>
+        <small>Agendamento online</small>
+      </div>
     </header>
 
-    <section id="step-calendar" class="card">
-      <div class="cal-head">
-        <button type="button" id="prev" aria-label="Mês anterior">‹</button>
-        <strong id="month-label"></strong>
-        <button type="button" id="next" aria-label="Próximo mês">›</button>
-      </div>
-      <div class="cal-grid weekdays">
-        <span>Dom</span><span>Seg</span><span>Ter</span><span>Qua</span><span>Qui</span><span>Sex</span><span>Sáb</span>
-      </div>
-      <div class="cal-grid" id="days"></div>
-      <p class="hint">Atendemos de segunda a sexta.</p>
-    </section>
+    <div id="progress" class="progress"></div>
 
-    <section id="step-slots" class="card" hidden>
-      <h2 id="slots-title">Horários</h2>
-      <div id="slots" class="slots"></div>
-    </section>
+    <main id="stage" class="stage" aria-live="polite"></main>
 
-    <section id="step-form" class="card" hidden>
-      <h2>Seus dados</h2>
-      <p id="summary" class="summary"></p>
-      <form id="form" novalidate>
-        <label>Nome completo
-          <input name="name" autocomplete="name" required>
-          <small class="err" data-for="name"></small>
-        </label>
-        <label>Telefone (WhatsApp)
-          <input name="phone" type="tel" inputmode="tel" autocomplete="tel" placeholder="(22) 99999-9999" required>
-          <small class="err" data-for="phone"></small>
-        </label>
-        <label>E-mail
-          <input name="email" type="email" autocomplete="email" required>
-          <small class="err" data-for="email"></small>
-        </label>
-        <p id="form-error" class="err" role="alert"></p>
-        <button type="submit" id="submit" class="primary">Confirmar agendamento</button>
-      </form>
-    </section>
+    <p id="flash" class="flash" role="alert"></p>
 
-    <section id="step-done" class="card" hidden>
-      <h2>Agendamento confirmado ✅</h2>
-      <p id="done-text"></p>
-      <a id="wa-link" class="primary link" target="_blank" rel="noopener" hidden>Enviar confirmação ao barbeiro no WhatsApp</a>
-      <button type="button" id="again">Fazer outro agendamento</button>
-    </section>
-  </main>
+    <nav id="nav" class="nav">
+      <button type="button" id="back" class="ghost" disabled>Voltar</button>
+      <button type="button" id="next" class="primary" disabled>Próximo</button>
+    </nav>
+  </div>
   <script src="app.js"></script>
 </body>
 </html>

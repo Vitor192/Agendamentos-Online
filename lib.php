@@ -1,6 +1,9 @@
 <?php
 declare(strict_types=1);
 
+const WEEKDAYS_LONG  = [1 => 'segunda-feira', 2 => 'terça-feira', 3 => 'quarta-feira', 4 => 'quinta-feira', 5 => 'sexta-feira', 6 => 'sábado', 7 => 'domingo'];
+const WEEKDAYS_SHORT = [1 => 'Seg', 2 => 'Ter', 3 => 'Qua', 4 => 'Qui', 5 => 'Sex', 6 => 'Sáb', 7 => 'Dom'];
+
 function config(): array
 {
     static $cfg = null;
@@ -23,21 +26,26 @@ function db(): PDO
     }
     $pdo = new PDO('sqlite:' . $path);
     $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+    $pdo->setAttribute(PDO::ATTR_TIMEOUT, 5);
     $pdo->exec('PRAGMA journal_mode = WAL');
-    $pdo->exec('
-        CREATE TABLE IF NOT EXISTS appointments (
-            id          INTEGER PRIMARY KEY AUTOINCREMENT,
-            date        TEXT NOT NULL,
-            time        TEXT NOT NULL,
-            name        TEXT NOT NULL,
-            phone       TEXT NOT NULL,
-            email       TEXT NOT NULL,
-            created_at  TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    $pdo->exec("
+        CREATE TABLE IF NOT EXISTS bookings (
+            id              INTEGER PRIMARY KEY AUTOINCREMENT,
+            professional_id INTEGER NOT NULL,
+            date            TEXT NOT NULL,          -- YYYY-MM-DD
+            start_min       INTEGER NOT NULL,       -- minutos desde 00:00
+            end_min         INTEGER NOT NULL,
+            name            TEXT NOT NULL,
+            phone           TEXT NOT NULL,          -- só dígitos, com 55
+            email           TEXT NOT NULL,
+            services        TEXT NOT NULL,          -- JSON com os nomes dos serviços
+            total_cents     INTEGER NOT NULL,
+            status          TEXT NOT NULL DEFAULT 'confirmed',
+            created_at      TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
         )
-    ');
-    // Garante que dois clientes nunca fiquem com o mesmo dia + horário,
-    // mesmo que enviem o pedido exatamente ao mesmo tempo.
-    $pdo->exec('CREATE UNIQUE INDEX IF NOT EXISTS uq_date_time ON appointments(date, time)');
+    ");
+    $pdo->exec('CREATE INDEX IF NOT EXISTS idx_bookings_agenda ON bookings(professional_id, date, status)');
+    $pdo->exec('CREATE INDEX IF NOT EXISTS idx_bookings_phone ON bookings(phone, status)');
     return $pdo;
 }
 
@@ -50,68 +58,212 @@ function json_response(array $data, int $status = 200): never
     exit;
 }
 
+/* ---------- Datas e horas ---------- */
+
 function parse_date(string $date): ?DateTimeImmutable
 {
     $d = DateTimeImmutable::createFromFormat('!Y-m-d', $date);
     return ($d && $d->format('Y-m-d') === $date) ? $d : null;
 }
 
-/** Dia útil (seg-sex), não passado e dentro da janela permitida. */
+function hm_to_min(string $hm): int
+{
+    [$h, $m] = array_map('intval', explode(':', $hm));
+    return $h * 60 + $m;
+}
+
+function min_to_hm(int $min): string
+{
+    return sprintf('%02d:%02d', intdiv($min, 60), $min % 60);
+}
+
+function now_min(): int
+{
+    return (int)date('G') * 60 + (int)date('i');
+}
+
+/** Dia de trabalho, não passado e dentro da janela permitida. */
 function is_bookable_date(DateTimeImmutable $d): bool
 {
+    $cfg = config();
     $today = new DateTimeImmutable('today');
-    $limit = $today->modify('+' . config()['days_ahead'] . ' days');
-    $dow = (int)$d->format('N'); // 1 = segunda ... 7 = domingo
-    return $dow <= 5 && $d >= $today && $d <= $limit;
+    $limit = $today->modify('+' . $cfg['days_ahead'] . ' days');
+    return in_array((int)$d->format('N'), $cfg['work_days'], true) && $d >= $today && $d <= $limit;
 }
 
-/** Todos os horários do dia segundo a configuração (ex.: ["08:00","09:00",...]). */
-function day_slots(): array
+/** Dias que o cliente pode escolher, já com os rótulos em português. */
+function bookable_dates(): array
 {
     $cfg = config();
-    $step = $cfg['slot_minutes'] * 60;
-    $start = strtotime('1970-01-01 ' . $cfg['open'] . ' UTC');
-    $end = strtotime('1970-01-01 ' . $cfg['close'] . ' UTC');
-    $lunch = $cfg['lunch'];
-    $ls = $lunch ? strtotime('1970-01-01 ' . $lunch[0] . ' UTC') : null;
-    $le = $lunch ? strtotime('1970-01-01 ' . $lunch[1] . ' UTC') : null;
-
-    $slots = [];
-    for ($t = $start; $t + $step <= $end; $t += $step) {
-        if ($lunch && $t < $le && $t + $step > $ls) {
+    $today = new DateTimeImmutable('today');
+    $minService = min(array_column($cfg['services'], 'minutes'));
+    $out = [];
+    for ($i = 0; $i <= $cfg['days_ahead']; $i++) {
+        $d = $today->modify("+$i days");
+        $dow = (int)$d->format('N');
+        if (!in_array($dow, $cfg['work_days'], true)) {
             continue;
         }
-        $slots[] = gmdate('H:i', $t);
+        // Hoje só entra se ainda couber algum atendimento.
+        if ($i === 0 && now_min() + $minService > hm_to_min($cfg['close'])) {
+            continue;
+        }
+        $dm = $d->format('d/m');
+        $out[] = [
+            'date'  => $d->format('Y-m-d'),
+            'short' => $i === 0 ? 'Hoje' : WEEKDAYS_SHORT[$dow],
+            'dm'    => $dm,
+            'long'  => WEEKDAYS_LONG[$dow] . ', ' . $dm,
+        ];
     }
-    return $slots;
+    return $out;
 }
 
-function booked_times(string $date): array
+/* ---------- Profissionais e serviços ---------- */
+
+function find_professional(int $id): ?array
 {
-    $st = db()->prepare('SELECT time FROM appointments WHERE date = ?');
-    $st->execute([$date]);
-    return $st->fetchAll(PDO::FETCH_COLUMN);
+    foreach (config()['professionals'] as $p) {
+        if ($p['id'] === $id) {
+            return $p;
+        }
+    }
+    return null;
 }
 
-/** Monta o texto enviado ao barbeiro. */
-function confirmation_message(array $a): string
+/** Devolve os serviços na ordem pedida; array vazio se faltar algum ou vier vazio. */
+function find_services(array $ids): array
 {
-    $d = DateTimeImmutable::createFromFormat('!Y-m-d', $a['date']);
+    $byId = [];
+    foreach (config()['services'] as $s) {
+        $byId[$s['id']] = $s;
+    }
+    $out = [];
+    foreach ($ids as $id) {
+        if (!isset($byId[$id])) {
+            return [];
+        }
+        $out[] = $byId[$id];
+    }
+    return $out;
+}
+
+function parse_service_ids(mixed $raw): array
+{
+    if (is_string($raw)) {
+        $raw = explode(',', $raw);
+    }
+    return array_values(array_unique(array_map('intval', (array)$raw)));
+}
+
+/* ---------- Disponibilidade ---------- */
+
+/**
+ * Horários de início livres para um profissional em uma data, considerando a
+ * duração total do atendimento. Um horário só é livre se o atendimento inteiro
+ * cabe no expediente, fora do almoço e sem encostar em outro agendamento.
+ */
+function available_starts(string $date, int $professionalId, int $duration): array
+{
+    $cfg = config();
+    $open = hm_to_min($cfg['open']);
+    $close = hm_to_min($cfg['close']);
+    $step = max(5, (int)$cfg['slot_step']);
+    $ls = $le = null;
+    if ($cfg['lunch']) {
+        $ls = hm_to_min($cfg['lunch'][0]);
+        $le = hm_to_min($cfg['lunch'][1]);
+    }
+
+    $st = db()->prepare("SELECT start_min, end_min FROM bookings WHERE professional_id = ? AND date = ? AND status = 'confirmed'");
+    $st->execute([$professionalId, $date]);
+    $busy = array_map(fn($r) => [(int)$r[0], (int)$r[1]], $st->fetchAll(PDO::FETCH_NUM));
+
+    $isToday = $date === date('Y-m-d');
+    $now = now_min();
+
+    $out = [];
+    for ($t = $open; $t + $duration <= $close; $t += $step) {
+        $end = $t + $duration;
+        if ($ls !== null && $t < $le && $end > $ls) {
+            continue;
+        }
+        if ($isToday && $t <= $now) {
+            continue;
+        }
+        foreach ($busy as [$bs, $be]) {
+            if ($t < $be && $end > $bs) {
+                continue 2;
+            }
+        }
+        $out[] = min_to_hm($t);
+    }
+    return $out;
+}
+
+/* ---------- Telefone ---------- */
+
+/** Aceita DDD + número (10 ou 11 dígitos) ou já com 55. Devolve só dígitos com 55, ou null. */
+function normalize_phone(string $raw): ?string
+{
+    $d = preg_replace('/\D+/', '', $raw);
+    if (strlen($d) === 10 || strlen($d) === 11) {
+        return '55' . $d;
+    }
+    if ((strlen($d) === 12 || strlen($d) === 13) && str_starts_with($d, '55')) {
+        return $d;
+    }
+    return null;
+}
+
+function format_phone_br(string $phone): string
+{
+    $d = str_starts_with($phone, '55') ? substr($phone, 2) : $phone;
+    if (strlen($d) === 11) {
+        return sprintf('(%s) %s-%s', substr($d, 0, 2), substr($d, 2, 5), substr($d, 7));
+    }
+    if (strlen($d) === 10) {
+        return sprintf('(%s) %s-%s', substr($d, 0, 2), substr($d, 2, 4), substr($d, 6));
+    }
+    return $phone;
+}
+
+/* ---------- WhatsApp ---------- */
+
+/** Número do WhatsApp que recebe os avisos do profissional (cai no padrão da barbearia). */
+function barber_number(?array $professional): string
+{
+    $n = (string)($professional['whatsapp'] ?? '');
+    $n = preg_replace('/\D+/', '', $n);
+    return $n !== '' ? $n : preg_replace('/\D+/', '', config()['barber_whatsapp']);
+}
+
+function brl(float $v): string
+{
+    return 'R$ ' . number_format($v, 2, ',', '.');
+}
+
+function confirmation_message(array $b): string
+{
+    $d = DateTimeImmutable::createFromFormat('!Y-m-d', $b['date']);
     return "✂️ *Novo agendamento - " . config()['shop_name'] . "*\n\n"
-        . "👤 Cliente: {$a['name']}\n"
-        . "📅 Data: " . $d->format('d/m/Y') . "\n"
-        . "🕒 Horário: {$a['time']}\n"
-        . "📞 Telefone: {$a['phone']}\n"
-        . "✉️ E-mail: {$a['email']}";
+        . "👤 Cliente: {$b['name']}\n"
+        . "💈 Profissional: {$b['professional']}\n"
+        . "🧾 Serviços: " . implode(' + ', $b['services']) . "\n"
+        . "📅 Data: " . $d->format('d/m/Y') . ' (' . WEEKDAYS_LONG[(int)$d->format('N')] . ")\n"
+        . "🕒 Horário: {$b['time']} ({$b['minutes']} min)\n"
+        . "💰 Total: " . brl($b['total']) . "\n"
+        . "📞 Telefone: " . format_phone_br($b['phone'])
+        . (($b['email'] ?? '') !== '' ? "\n✉️ E-mail: {$b['email']}" : '');
 }
 
-function whatsapp_link(string $message): string
+function whatsapp_link(string $number, string $message): string
 {
-    return 'https://wa.me/' . config()['barber_whatsapp'] . '?text=' . rawurlencode($message);
+    return 'https://wa.me/' . $number . '?text=' . rawurlencode($message);
 }
 
 /** Envia via WhatsApp Cloud API. Retorna true se aceito pela API. */
-function send_whatsapp(string $message): bool
+function send_whatsapp(string $number, string $message): bool
 {
     $wa = config()['whatsapp_cloud'];
     if ($wa['token'] === '' || $wa['phone_number_id'] === '') {
@@ -128,7 +280,7 @@ function send_whatsapp(string $message): bool
         ],
         CURLOPT_POSTFIELDS     => json_encode([
             'messaging_product' => 'whatsapp',
-            'to'                => config()['barber_whatsapp'],
+            'to'                => $number,
             'type'              => 'text',
             'text'              => ['body' => $message],
         ], JSON_UNESCAPED_UNICODE),

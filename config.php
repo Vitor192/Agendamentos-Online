@@ -4,17 +4,47 @@ return [
     'shop_name'       => 'Barbearia Exemplo',
     'timezone'        => 'America/Sao_Paulo',
 
-    // Horário de funcionamento (segunda a sexta)
+    // Horário de funcionamento
     'open'            => '08:00',
     'close'           => '18:00',
-    'slot_minutes'    => 60,              // duração de cada atendimento
+    'slot_step'       => 30,                 // de quanto em quanto tempo um atendimento pode começar (minutos)
     'lunch'           => ['12:00', '13:00'], // intervalo sem atendimento; use null para desativar
+    'work_days'       => [1, 2, 3, 4, 5],    // 1 = segunda ... 7 = domingo
 
     // Quantos dias à frente o cliente pode agendar
     'days_ahead'      => 30,
 
-    // WhatsApp do barbeiro: DDI + DDD + número, só dígitos (ex.: 5522999999999)
+    // WhatsApp padrão do barbeiro: DDI + DDD + número, só dígitos (ex.: 5522999999999)
     'barber_whatsapp' => getenv('BARBER_WHATSAPP') ?: '5522999999999',
+
+    // Profissionais. Cada um pode ter o próprio WhatsApp ('whatsapp' => '5522...');
+    // com null, a confirmação vai para o número padrão acima.
+    'professionals'   => [
+        ['id' => 1, 'name' => 'Rafael Costa',  'whatsapp' => null],
+        ['id' => 2, 'name' => 'Diego Martins', 'whatsapp' => null],
+    ],
+
+    // Serviços de exemplo: duração em minutos e preço em reais. Troque pelos do cliente.
+    'services'        => [
+        ['id' => 1,  'name' => 'Disfarçado / Degradê',          'minutes' => 45,  'price' => 35.00],
+        ['id' => 2,  'name' => 'Cabelo e barba',                'minutes' => 90,  'price' => 65.00],
+        ['id' => 3,  'name' => 'Tesoura',                       'minutes' => 45,  'price' => 35.00],
+        ['id' => 4,  'name' => 'Barba',                         'minutes' => 40,  'price' => 30.00],
+        ['id' => 5,  'name' => 'Sobrancelha',                   'minutes' => 5,   'price' => 5.00],
+        ['id' => 6,  'name' => 'Limpeza na cera quente',        'minutes' => 20,  'price' => 10.00],
+        ['id' => 7,  'name' => 'Pigmentação',                   'minutes' => 30,  'price' => 20.00],
+        ['id' => 8,  'name' => 'Luzes',                         'minutes' => 120, 'price' => 35.00],
+        ['id' => 9,  'name' => 'Limpeza de pele',               'minutes' => 40,  'price' => 30.00],
+        ['id' => 10, 'name' => 'Corte infantil',                'minutes' => 45,  'price' => 40.00],
+        ['id' => 11, 'name' => 'Corte + pigmentação',           'minutes' => 60,  'price' => 50.00],
+        ['id' => 12, 'name' => 'Hidratação',                    'minutes' => 30,  'price' => 30.00],
+        ['id' => 13, 'name' => 'Platinado',                     'minutes' => 120, 'price' => 100.00],
+        ['id' => 14, 'name' => 'Acabamento (pezinho)',          'minutes' => 10,  'price' => 10.00],
+        ['id' => 15, 'name' => 'Máquina 1 pente ou raspar cabeça', 'minutes' => 30, 'price' => 25.00],
+        ['id' => 16, 'name' => 'Relaxamento',                   'minutes' => 30,  'price' => 30.00],
+        ['id' => 17, 'name' => 'Depilação nariz e orelha',      'minutes' => 10,  'price' => 20.00],
+        ['id' => 18, 'name' => 'Camuflagem pelos brancos',      'minutes' => 20,  'price' => 30.00],
+    ],
 
     // Envio automático via WhatsApp Cloud API (Meta). Se vazio, o sistema
     // devolve um link wa.me com a mensagem pronta como alternativa.

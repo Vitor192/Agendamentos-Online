@@ -1,131 +1,65 @@
 "use strict";
-// Frontend do agendamento. Compile com: npm run build  (gera public/app.js)
+// Agendamento em etapas. Compile com: npm run build  (gera public/app.js)
 const MONTHS = [
     "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
     "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro",
 ];
+const WEEKDAYS = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
+const STEPS = ["Seus dados", "Barbeiro", "Serviços", "Data e horário", "Confirmação"];
+const LAST = STEPS.length - 1;
+const DONE = STEPS.length;
 const $ = (id) => {
     const el = document.getElementById(id);
     if (!el)
         throw new Error(`Elemento #${id} não encontrado`);
     return el;
 };
+const stage = $("stage");
+const progressEl = $("progress");
+const flashEl = $("flash");
+const navEl = $("nav");
+const backBtn = $("back");
+const nextBtn = $("next");
 const state = {
-    info: null,
-    viewYear: 0,
-    viewMonth: 0, // 0-11
+    step: 0,
+    name: "",
+    phone: "",
+    email: "",
+    pro: null,
+    selected: new Set(),
     date: null,
     time: null,
+    month: "",
+    busy: false,
 };
+let info;
+function h(tag, props = {}, ...kids) {
+    const el = document.createElement(tag);
+    for (const [k, v] of Object.entries(props)) {
+        if (v === undefined)
+            continue;
+        if (k === "class")
+            el.className = v;
+        else
+            el.setAttribute(k, v);
+    }
+    for (const c of kids) {
+        if (c === null || c === false)
+            continue;
+        el.append(c);
+    }
+    return el;
+}
+const brl = (v) => v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
+const digits = (v) => v.replace(/\D/g, "");
 const pad = (n) => String(n).padStart(2, "0");
-const toYmd = (y, m, d) => `${y}-${pad(m + 1)}-${pad(d)}`;
-const parseYmd = (s) => {
-    const [y, m, d] = s.split("-").map(Number);
-    return new Date(y, m - 1, d);
-};
-const formatBr = (s) => {
-    const [y, m, d] = s.split("-");
-    return `${d}/${m}/${y}`;
-};
-function show(id, visible) {
-    $(id).hidden = !visible;
-}
-/* ---------- Calendário ---------- */
-function renderCalendar() {
-    const info = state.info;
-    if (!info)
-        return;
-    const { viewYear: y, viewMonth: m } = state;
-    $("month-label").textContent = `${MONTHS[m]} ${y}`;
-    const today = parseYmd(info.today);
-    const limit = new Date(today);
-    limit.setDate(limit.getDate() + info.days_ahead);
-    const first = new Date(y, m, 1);
-    const daysInMonth = new Date(y, m + 1, 0).getDate();
-    const grid = $("days");
-    grid.innerHTML = "";
-    for (let i = 0; i < first.getDay(); i++) {
-        grid.appendChild(document.createElement("span"));
-    }
-    for (let d = 1; d <= daysInMonth; d++) {
-        const date = new Date(y, m, d);
-        const dow = date.getDay();
-        const ymd = toYmd(y, m, d);
-        const btn = document.createElement("button");
-        btn.type = "button";
-        btn.className = "day";
-        btn.textContent = String(d);
-        btn.disabled = dow === 0 || dow === 6 || date < today || date > limit;
-        if (ymd === state.date)
-            btn.classList.add("selected");
-        btn.addEventListener("click", () => selectDate(ymd));
-        grid.appendChild(btn);
-    }
-    const prevDisabled = y === today.getFullYear() && m === today.getMonth();
-    const nextDisabled = y === limit.getFullYear() && m === limit.getMonth();
-    $("prev").disabled = prevDisabled;
-    $("next").disabled = nextDisabled;
-}
-function changeMonth(delta) {
-    const d = new Date(state.viewYear, state.viewMonth + delta, 1);
-    state.viewYear = d.getFullYear();
-    state.viewMonth = d.getMonth();
-    renderCalendar();
-}
-/* ---------- Horários ---------- */
-async function selectDate(ymd) {
-    state.date = ymd;
-    state.time = null;
-    show("step-form", false);
-    renderCalendar();
-    $("slots-title").textContent = `Horários em ${formatBr(ymd)}`;
-    const box = $("slots");
-    box.textContent = "Carregando...";
-    show("step-slots", true);
-    try {
-        const res = await fetch(`api/slots.php?date=${encodeURIComponent(ymd)}`);
-        const data = await res.json();
-        if (!res.ok)
-            throw new Error(data.error ?? "Erro ao carregar horários.");
-        renderSlots(data.slots);
-    }
-    catch (e) {
-        box.textContent = e instanceof Error ? e.message : "Erro ao carregar horários.";
-    }
-}
-function renderSlots(slots) {
-    const box = $("slots");
-    box.innerHTML = "";
-    if (slots.every((s) => !s.available)) {
-        box.textContent = "Não há horários livres neste dia. Escolha outra data.";
-        return;
-    }
-    for (const s of slots) {
-        const btn = document.createElement("button");
-        btn.type = "button";
-        btn.className = "slot";
-        btn.textContent = s.time;
-        btn.disabled = !s.available;
-        btn.title = s.available ? "" : "Indisponível";
-        btn.addEventListener("click", () => selectTime(s.time, btn));
-        box.appendChild(btn);
-    }
-}
-function selectTime(time, btn) {
-    state.time = time;
-    document.querySelectorAll(".slot.selected").forEach((el) => el.classList.remove("selected"));
-    btn.classList.add("selected");
-    $("summary").textContent = `${formatBr(state.date ?? "")} às ${time}`;
-    clearErrors();
-    show("step-form", true);
-    $("step-form").scrollIntoView({ behavior: "smooth", block: "nearest" });
-}
-/* ---------- Formulário ---------- */
-function clearErrors() {
-    document.querySelectorAll(".err").forEach((el) => (el.textContent = ""));
-}
+const initials = (n) => n.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w.charAt(0)).join("").toUpperCase();
+const validName = (v) => v.trim().length >= 3;
+const validPhone = (v) => { const n = digits(v).length; return n === 10 || n === 11; };
+const validEmail = (v) => v === "" || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
 function maskPhone(value) {
-    const d = value.replace(/\D/g, "").slice(0, 11);
+    const d = digits(value).slice(0, 11);
     if (d.length <= 2)
         return d;
     if (d.length <= 6)
@@ -134,103 +68,345 @@ function maskPhone(value) {
         return `(${d.slice(0, 2)}) ${d.slice(2, 6)}-${d.slice(6)}`;
     return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`;
 }
-async function submitForm(ev) {
-    ev.preventDefault();
-    if (!state.date || !state.time)
+const chosenServices = () => info.services.filter((s) => state.selected.has(s.id));
+const totals = () => {
+    const c = chosenServices();
+    return { minutes: c.reduce((a, s) => a + s.minutes, 0), price: c.reduce((a, s) => a + s.price, 0) };
+};
+const dateOption = () => info.dates.find((d) => d.date === state.date) ?? null;
+function flash(msg) {
+    flashEl.textContent = msg;
+}
+/* ---------- Navegação ---------- */
+function stepValid() {
+    switch (state.step) {
+        case 0: return validName(state.name) && validPhone(state.phone) && validEmail(state.email);
+        case 1: return state.pro !== null;
+        case 2: return state.selected.size > 0;
+        case 3: return state.date !== null && state.time !== null;
+        case 4: return true;
+        default: return false;
+    }
+}
+function updateNav() {
+    backBtn.disabled = state.step === 0 || state.busy;
+    nextBtn.disabled = !stepValid() || state.busy;
+    nextBtn.textContent = state.step === LAST ? "Confirmar agendamento" : "Próximo";
+}
+function renderProgress() {
+    const label = state.step >= DONE ? "Agendamento concluído" : `Etapa ${state.step + 1} de ${STEPS.length} · ${STEPS[state.step]}`;
+    progressEl.replaceChildren(h("p", { class: "progress-label" }, label), h("div", { class: "bars" }, ...STEPS.map((_, i) => h("span", { class: i <= state.step ? "on" : "" }))));
+}
+function render() {
+    renderProgress();
+    stage.replaceChildren();
+    flash("");
+    const builders = [stepData, stepPro, stepServices, stepDate, stepReview];
+    builders[state.step]();
+    updateNav();
+    window.scrollTo({ top: 0 });
+}
+async function goNext() {
+    if (!stepValid() || state.busy)
         return;
-    const form = ev.target;
-    const data = new FormData(form);
-    const phoneDigits = String(data.get("phone") ?? "").replace(/\D/g, "");
-    const payload = {
-        date: state.date,
-        time: state.time,
-        name: String(data.get("name") ?? ""),
-        // O backend espera DDD + número; acrescenta o DDI do Brasil se faltar.
-        phone: phoneDigits.length <= 11 ? `55${phoneDigits}` : phoneDigits,
-        email: String(data.get("email") ?? ""),
+    if (state.step === LAST) {
+        await submit();
+        return;
+    }
+    state.step += 1;
+    render();
+}
+function goBack() {
+    if (state.step === 0 || state.busy)
+        return;
+    state.step -= 1;
+    render();
+}
+backBtn.addEventListener("click", goBack);
+nextBtn.addEventListener("click", () => { void goNext(); });
+stage.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && e.target.tagName === "INPUT") {
+        e.preventDefault();
+        void goNext();
+    }
+});
+function field(o) {
+    const input = h("input", {
+        id: o.id, name: o.id, type: o.type ?? "text", inputmode: o.mode ?? "text",
+        autocomplete: o.auto ?? "off", placeholder: o.ph,
+    });
+    input.value = o.value;
+    const hint = h("small", { class: "hint" });
+    const refresh = () => { hint.textContent = input.value ? o.hint(input.value) : ""; };
+    input.addEventListener("input", () => {
+        if (o.mask)
+            input.value = o.mask(input.value);
+        o.set(input.value.trim());
+        refresh();
+        updateNav();
+    });
+    refresh();
+    return h("label", { class: "field", for: o.id }, h("span", {}, o.label, o.optional ? h("span", { class: "opt-tag" }, " (opcional)") : false), input, hint);
+}
+function stepData() {
+    stage.append(h("h2", {}, "Vamos começar! Como podemos te chamar?"), field({
+        id: "name", label: "Seu nome", ph: "Nome completo", auto: "name", value: state.name,
+        hint: (v) => (validName(v) ? "" : "Informe pelo menos 3 letras."),
+        set: (v) => { state.name = v; },
+    }), field({
+        id: "phone", label: "Seu WhatsApp com DDD", ph: "(22) 99999-9999", type: "tel", mode: "tel", auto: "tel",
+        value: state.phone, mask: maskPhone,
+        hint: (v) => (validPhone(v) ? "" : "Número incompleto. Use DDD + número."),
+        set: (v) => { state.phone = v; },
+    }), field({
+        id: "email", label: "Seu e-mail", optional: true, ph: "seu@email.com", type: "email", mode: "email", auto: "email",
+        value: state.email,
+        hint: (v) => (validEmail(v) ? "" : "Esse e-mail não parece certo."),
+        set: (v) => { state.email = v; },
+    }), h("p", { class: "note" }, "🔒 Seus dados são usados só para marcar o horário."));
+}
+/* ---------- Etapa 2: barbeiro ---------- */
+function stepPro() {
+    const list = h("div", { class: "picks", role: "radiogroup", "aria-label": "Barbeiro" });
+    const buttons = [];
+    for (const p of info.professionals) {
+        const b = h("button", {
+            type: "button", class: "pick", role: "radio", "aria-checked": String(state.pro?.id === p.id),
+        }, h("span", { class: "initials" }, initials(p.name)), h("span", { class: "pick-name" }, p.name));
+        b.addEventListener("click", () => {
+            if (state.pro?.id !== p.id)
+                state.time = null;
+            state.pro = p;
+            for (const x of buttons)
+                x.b.setAttribute("aria-checked", String(x.p.id === p.id));
+            updateNav();
+        });
+        buttons.push({ b, p });
+        list.append(b);
+    }
+    stage.append(h("h2", {}, "Com quem você prefere ser atendido(a)?"), list);
+}
+/* ---------- Etapa 3: serviços ---------- */
+function stepServices() {
+    const total = h("p", { class: "svc-total" });
+    const refresh = () => {
+        const t = totals();
+        total.replaceChildren();
+        if (!state.selected.size) {
+            total.append("Marque pelo menos um serviço.");
+        }
+        else {
+            total.append(`${state.selected.size} selecionado(s) · ${t.minutes} min · `, h("b", {}, brl(t.price)));
+        }
     };
-    clearErrors();
-    const submit = $("submit");
-    submit.disabled = true;
+    const list = h("div", { class: "svc-list" });
+    for (const s of info.services) {
+        const box = h("input", { type: "checkbox", id: `svc-${s.id}` });
+        box.checked = state.selected.has(s.id);
+        box.addEventListener("change", () => {
+            if (box.checked)
+                state.selected.add(s.id);
+            else
+                state.selected.delete(s.id);
+            state.time = null; // a duração mudou, o horário precisa ser escolhido de novo
+            refresh();
+            updateNav();
+        });
+        list.append(h("label", { class: "svc", for: `svc-${s.id}` }, box, h("span", { class: "meta" }, h("b", {}, s.name), h("small", {}, `${s.minutes} min`)), h("span", { class: "price" }, brl(s.price))));
+    }
+    stage.append(h("h2", {}, "Quais serviços você quer fazer?"), h("p", { class: "muted" }, "Você pode marcar um ou mais."), list, total);
+    refresh();
+}
+/* ---------- Etapa 4: data e horário ---------- */
+let slotToken = 0;
+function renderCalendar(box, slots) {
+    const avail = new Set(info.dates.map((d) => d.date));
+    const months = [...new Set(info.dates.map((d) => d.date.slice(0, 7)))];
+    const idx = Math.max(0, months.indexOf(state.month));
+    const [y, m] = months[idx].split("-").map(Number);
+    const firstWeekday = new Date(y, m - 1, 1).getDay();
+    const count = new Date(y, m, 0).getDate();
+    const prev = h("button", { type: "button", "aria-label": "Mês anterior" }, "‹");
+    const next = h("button", { type: "button", "aria-label": "Próximo mês" }, "›");
+    prev.disabled = idx === 0;
+    next.disabled = idx === months.length - 1;
+    prev.addEventListener("click", () => { state.month = months[idx - 1]; renderCalendar(box, slots); });
+    next.addEventListener("click", () => { state.month = months[idx + 1]; renderCalendar(box, slots); });
+    const grid = h("div", { class: "cal-grid" });
+    for (let i = 0; i < firstWeekday; i++)
+        grid.append(h("span"));
+    for (let d = 1; d <= count; d++) {
+        const key = `${y}-${pad(m)}-${pad(d)}`;
+        const b = h("button", { type: "button", class: "day" + (key === state.date ? " selected" : "") }, String(d));
+        b.disabled = !avail.has(key);
+        b.addEventListener("click", () => {
+            state.date = key;
+            state.time = null;
+            renderCalendar(box, slots);
+            updateNav();
+            void loadTimes(slots);
+        });
+        grid.append(b);
+    }
+    box.replaceChildren(h("div", { class: "cal-head" }, prev, h("strong", {}, `${MONTHS[m - 1]} ${y}`), next), h("div", { class: "cal-grid weekdays" }, ...WEEKDAYS.map((w) => h("span", {}, w))), grid);
+}
+async function loadTimes(box) {
+    if (!state.date || !state.pro)
+        return;
+    const token = ++slotToken;
+    box.replaceChildren(h("p", { class: "muted" }, "Buscando horários livres..."));
+    const q = new URLSearchParams({
+        date: state.date,
+        professional: String(state.pro.id),
+        services: [...state.selected].join(","),
+    });
+    try {
+        const res = await fetch(`api/slots.php?${q.toString()}`);
+        const data = (await res.json());
+        if (token !== slotToken)
+            return;
+        if (!res.ok) {
+            box.replaceChildren(h("p", { class: "err" }, data.error ?? "Não foi possível buscar os horários."));
+            return;
+        }
+        const times = data.times ?? [];
+        if (state.time && !times.includes(state.time))
+            state.time = null;
+        updateNav();
+        if (!times.length) {
+            box.replaceChildren(h("p", { class: "muted" }, "Esse dia não tem horário livre para esses serviços. Escolha outro dia."));
+            return;
+        }
+        renderTimes(box, times);
+    }
+    catch {
+        if (token === slotToken)
+            box.replaceChildren(h("p", { class: "err" }, "Falha de conexão. Tente novamente."));
+    }
+}
+function renderTimes(box, times) {
+    const opt = dateOption();
+    const t = totals();
+    const grid = h("div", { class: "times" });
+    const buttons = [];
+    for (const time of times) {
+        const b = h("button", { type: "button", class: "time" + (time === state.time ? " selected" : "") }, time);
+        b.addEventListener("click", () => {
+            state.time = time;
+            for (const x of buttons)
+                x.b.classList.toggle("selected", x.time === time);
+            updateNav();
+        });
+        buttons.push({ b, time });
+        grid.append(b);
+    }
+    box.replaceChildren(h("h3", { class: "times-title" }, `Horários livres · ${opt ? cap(opt.long) : ""}`), h("p", { class: "muted" }, `Duração total do atendimento: ${t.minutes} min`), grid);
+}
+function stepDate() {
+    if (!info.dates.length) {
+        stage.append(h("h2", {}, "Sem datas disponíveis"), h("p", { class: "muted" }, "Não há dias livres para agendar agora. Tente novamente mais tarde."));
+        return;
+    }
+    const months = [...new Set(info.dates.map((d) => d.date.slice(0, 7)))];
+    if (!months.includes(state.month))
+        state.month = state.date ? state.date.slice(0, 7) : months[0];
+    if (state.date && !info.dates.some((d) => d.date === state.date)) {
+        state.date = null;
+        state.time = null;
+    }
+    const cal = h("div", { class: "cal" });
+    const slots = h("div", { class: "slots", style: "display:grid;gap:10px" });
+    stage.append(h("h2", {}, "Qual dia e horário ficam melhores?"), cal, h("p", { class: "muted" }, "Os dias sem atendimento ficam desativados."), slots);
+    renderCalendar(cal, slots);
+    if (state.date)
+        void loadTimes(slots);
+}
+/* ---------- Etapa 5: confirmação ---------- */
+function summaryCard() {
+    const t = totals();
+    const opt = dateOption();
+    const rows = [
+        ["Cliente", state.name],
+        ["WhatsApp", state.phone],
+    ];
+    if (state.email)
+        rows.push(["E-mail", state.email]);
+    rows.push(["Barbeiro", state.pro?.name ?? ""], ["Serviços", chosenServices().map((s) => s.name).join(" + ")], ["Data", `${opt ? cap(opt.long) : ""} às ${state.time ?? ""}`], ["Duração", `${t.minutes} min`], ["Total", brl(t.price), "total"]);
+    return h("dl", { class: "review", style: "margin:0" }, ...rows.map(([k, v, cls]) => h("div", { class: "row" + (cls ? ` ${cls}` : "") }, h("dt", {}, k), h("dd", {}, v))));
+}
+function stepReview() {
+    stage.append(h("h2", {}, "Revise os dados e confirme"), summaryCard(), h("p", { class: "note" }, "Ao confirmar, o horário é reservado e o WhatsApp do barbeiro abre com os dados do agendamento."));
+}
+async function submit() {
+    state.busy = true;
+    nextBtn.textContent = "Confirmando...";
+    updateNav();
+    flash("");
     try {
         const res = await fetch("api/book.php", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(payload),
+            body: JSON.stringify({
+                name: state.name,
+                phone: state.phone,
+                email: state.email,
+                professional_id: state.pro?.id,
+                service_ids: [...state.selected],
+                date: state.date,
+                time: state.time,
+            }),
         });
-        const body = await res.json();
+        const data = (await res.json());
+        state.busy = false;
         if (res.status === 409) {
-            // Outro cliente reservou esse horário primeiro: recarrega a lista.
-            $("form-error").textContent = body.error ?? "Horário indisponível.";
-            show("step-form", false);
-            await selectDate(state.date);
+            // Outro cliente reservou antes: volta para escolher outro horário.
+            state.time = null;
+            state.step = 3;
+            render();
+            flash(data.error ?? "Esse horário acabou de ser reservado. Escolha outro.");
             return;
         }
-        if (!res.ok || !body.ok || !body.appointment) {
-            for (const [field, msg] of Object.entries(body.fields ?? {})) {
-                const el = document.querySelector(`.err[data-for="${field}"]`);
-                if (el)
-                    el.textContent = msg;
-            }
-            $("form-error").textContent = body.error ?? "Não foi possível agendar.";
+        if (!res.ok || !data.ok) {
+            updateNav();
+            flash(data.error ?? "Não foi possível concluir o agendamento. Tente novamente.");
             return;
         }
-        showDone(body);
+        showDone(data);
     }
     catch {
-        $("form-error").textContent = "Falha de conexão. Tente novamente.";
-    }
-    finally {
-        submit.disabled = false;
+        state.busy = false;
+        updateNav();
+        flash("Falha de conexão. Tente novamente.");
     }
 }
-function showDone(body) {
-    const a = body.appointment;
-    $("done-text").textContent =
-        `${a.name}, seu horário está reservado para ${formatBr(a.date)} às ${a.time}.`;
-    const link = $("wa-link");
-    // Se o servidor não conseguiu enviar pela API, oferece o link com a mensagem pronta.
-    if (!body.whatsapp_sent && body.whatsapp_link) {
-        link.href = body.whatsapp_link;
-        link.hidden = false;
+function showDone(data) {
+    const card = summaryCard();
+    const link = data.whatsapp_link ?? "";
+    state.step = DONE;
+    renderProgress();
+    flash("");
+    navEl.hidden = true;
+    stage.replaceChildren(h("div", { class: "done" }, h("div", { class: "check", "aria-hidden": "true" }, "✓"), h("h2", {}, "Agendamento confirmado"), h("p", { class: "muted" }, data.whatsapp_sent
+        ? "O barbeiro já foi avisado pelo WhatsApp. Te esperamos!"
+        : "Falta só enviar a confirmação ao barbeiro pelo WhatsApp."), card, !data.whatsapp_sent && link
+        ? h("a", { class: "wa-btn", href: link, target: "_blank", rel: "noopener" }, "Abrir WhatsApp do barbeiro")
+        : false));
+    window.scrollTo({ top: 0 });
+    // Em tela cheia, abre o WhatsApp sozinho. Dentro de um quadro (pré-visualização) só mostra o botão.
+    if (!data.whatsapp_sent && link && window.top === window.self) {
+        window.setTimeout(() => window.location.assign(link), 900);
     }
-    else {
-        link.hidden = true;
-    }
-    show("step-calendar", false);
-    show("step-slots", false);
-    show("step-form", false);
-    show("step-done", true);
 }
-function reset() {
-    state.date = null;
-    state.time = null;
-    $("form").reset();
-    show("step-done", false);
-    show("step-calendar", true);
-    renderCalendar();
-}
-/* ---------- Inicialização ---------- */
+/* ---------- Início ---------- */
 async function init() {
     const res = await fetch("api/info.php");
-    const info = await res.json();
-    state.info = info;
+    info = (await res.json());
     $("shop-name").textContent = info.shop_name;
+    $("avatar").textContent = initials(info.shop_name);
     document.title = `Agendar - ${info.shop_name}`;
-    const today = parseYmd(info.today);
-    state.viewYear = today.getFullYear();
-    state.viewMonth = today.getMonth();
-    $("prev").addEventListener("click", () => changeMonth(-1));
-    $("next").addEventListener("click", () => changeMonth(1));
-    $("form").addEventListener("submit", submitForm);
-    $("again").addEventListener("click", reset);
-    $("form").querySelector('input[name="phone"]')
-        ?.addEventListener("input", (e) => {
-        const input = e.target;
-        input.value = maskPhone(input.value);
-    });
-    renderCalendar();
+    render();
 }
 init().catch(() => {
     $("shop-name").textContent = "Não foi possível carregar o sistema.";
+    navEl.hidden = true;
 });

@@ -13,6 +13,7 @@ O projeto traz exemplos de barbeiros e serviços. Tudo se ajusta em um único ar
 | Frontend | **TypeScript** | Interface em etapas, compilada para JavaScript (`src/app.ts` → `public/app.js`) |
 | Frontend | **JavaScript, HTML e CSS** | Sem framework: o `app.js` gerado roda direto no navegador |
 | Integração | **WhatsApp** (link `wa.me` ou Cloud API da Meta) | Envio da confirmação ao barbeiro |
+| Segurança | **Sessões PHP, `password_hash`** | Login do dono, cookie seguro e limite de tentativas |
 | Ferramentas | **Node.js + tsc** | Só para recompilar o TypeScript |
 
 ## Como funciona o agendamento
@@ -43,7 +44,37 @@ Na tela final o cliente pode **fazer um novo agendamento** ou **ver os seus agen
 
 O e-mail aparece na mensagem quando o cliente o informa.
 
-### Regras da agenda
+### Área do dono
+
+Tela protegida por senha, só para o dono da barbearia, em `/admin/`.
+
+- **Abre sempre no dia de hoje**, com os clientes na ordem dos horários: nome, serviços, barbeiro, duração, valor, WhatsApp e e-mail.
+- Quando é hoje, cada cliente recebe uma etiqueta: **Concluído**, **Em atendimento** ou **Próximo**.
+- Mostra o **número de clientes** e o **total do dia**.
+- Setas de dia anterior e próximo dia, seletor de data e botão **Ir para hoje** para ver qualquer outro dia, passado ou futuro.
+- **Filtro por barbeiro** para ver só a agenda de um deles.
+- Botões **WhatsApp** e **Ligar** em cada cliente.
+- Atualiza sozinha a cada minuto, então novos agendamentos aparecem sem recarregar a página.
+
+### Como proteger com senha
+
+A área do dono fica **bloqueada para todos** até você definir uma senha:
+
+```bash
+php tools/gerar-senha.php
+```
+
+O comando pede a senha (mínimo 8 caracteres) e imprime um *hash*. Cole esse texto em `admin_password_hash` no `config.php`, entre aspas simples. A senha em si nunca é guardada. Também vale a variável de ambiente `ADMIN_PASSWORD_HASH`.
+
+Como o acesso é protegido:
+
+- A senha é conferida com `password_verify` contra o hash. Sem hash configurado, ninguém entra.
+- **5 senhas erradas em 10 minutos bloqueiam novas tentativas** daquele IP.
+- A sessão usa cookie `HttpOnly` e `SameSite=Strict` (e `Secure` em HTTPS), troca de identificador ao entrar e expira após 8 horas sem uso.
+- Os dados da agenda só saem da API para quem está logado. Sem login, a API responde 401.
+- A página tem `noindex`, para não aparecer em buscadores.
+
+## Regras da agenda
 
 - Um horário de início só aparece se o **atendimento inteiro cabe** no expediente, fora do almoço e sem encostar em outro agendamento do mesmo barbeiro. Um serviço de 90 min às 08:00 bloqueia a agenda até as 09:30.
 - Cada barbeiro tem a **própria agenda**: o mesmo horário pode estar livre com um e ocupado com outro.
@@ -92,8 +123,15 @@ public/             única pasta que deve ficar acessível na web
   api/slots.php     GET   horários livres (data + barbeiro + serviços)
   api/book.php      POST  cria o agendamento
   api/my.php        GET   próximos agendamentos (telefone + nome)
-src/app.ts          código TypeScript do frontend
-preview.html        pré-visualização sem PHP (dados simulados no navegador)
+  api/admin/        área do dono: session, login, logout, agenda (exigem senha)
+  admin/index.html  tela da área do dono
+  admin.css         estilos da área do dono
+  admin.js          gerado a partir de src/admin.ts (já incluído)
+src/app.ts          TypeScript da página de agendamento
+src/admin.ts        TypeScript da área do dono
+tools/gerar-senha.php   gera o hash da senha do dono
+preview.html        prévia do agendamento, sem PHP (dados simulados)
+preview-admin.html  prévia da área do dono, sem PHP (senha de demonstração: demo1234)
 data/               banco SQLite, criado automaticamente (fora do Git)
 ```
 
@@ -105,6 +143,10 @@ data/               banco SQLite, criado automaticamente (fora do Git)
 | `api/slots.php` | GET | `date`, `professional`, `services` (ids separados por vírgula) | `times`: horários de início livres |
 | `api/book.php` | POST (JSON) | `name`, `phone`, `email`, `professional_id`, `service_ids`, `date`, `time` | `booking`, `whatsapp_sent`, `whatsapp_link`. Erro 409 se o horário foi ocupado |
 | `api/my.php` | GET | `phone`, `name` | `bookings`: próximos agendamentos |
+| `api/admin/session.php` | GET | nenhum | `configured`, `logged`, `today` |
+| `api/admin/login.php` | POST (JSON) | `password` | `ok`. Erro 401 se a senha estiver errada e 429 após muitas tentativas |
+| `api/admin/logout.php` | POST | nenhum | `ok` |
+| `api/admin/agenda.php` | GET | `date` (opcional, padrão hoje) | `bookings`, `totals`, `professionals`. Erro 401 sem login |
 
 ## Como rodar
 
@@ -124,7 +166,7 @@ npm run build      # recompila src/app.ts para public/app.js
 npm run watch      # recompila a cada alteração
 ```
 
-Para só ver a interface, sem PHP, abra o `preview.html` no navegador. Ele usa dados simulados.
+Para só ver a interface, sem PHP, abra o `preview.html` (agendamento) ou o `preview-admin.html` (área do dono) no navegador. Eles usam dados simulados.
 
 ## Configuração (`config.php`)
 
@@ -153,4 +195,6 @@ Aponte o domínio para a pasta `public/`, assim `config.php`, `lib.php` e `data/
 
 - Não há cancelamento nem remarcação pelo cliente. O barbeiro cuida disso pelo WhatsApp.
 - A consulta "Meus agendamentos" não limita o número de tentativas. Vale adicionar um limite se o site ficar público.
-- Não há painel do barbeiro: a agenda fica no banco SQLite e nas mensagens recebidas no WhatsApp.
+- A área do dono é de leitura: não cancela nem remarca agendamentos.
+- O bloqueio por tentativas é por IP. Atrás de um proxy ou CDN, todos podem aparecer com o mesmo IP.
+- Há uma única senha de dono, sem contas separadas por barbeiro.

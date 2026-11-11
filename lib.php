@@ -46,6 +46,8 @@ function db(): PDO
     ");
     $pdo->exec('CREATE INDEX IF NOT EXISTS idx_bookings_agenda ON bookings(professional_id, date, status)');
     $pdo->exec('CREATE INDEX IF NOT EXISTS idx_bookings_phone ON bookings(phone, status)');
+    $pdo->exec('CREATE TABLE IF NOT EXISTS login_attempts (ip TEXT NOT NULL, at INTEGER NOT NULL)');
+    $pdo->exec('CREATE INDEX IF NOT EXISTS idx_login_attempts ON login_attempts(ip, at)');
     return $pdo;
 }
 
@@ -310,4 +312,94 @@ function first_name_fold(string $s): string
 {
     $parts = preg_split('/\s+/', fold_text($s));
     return $parts[0] ?? '';
+}
+
+/* ---------- Área do dono: sessão e proteção ---------- */
+
+const ADMIN_IDLE_SECONDS = 8 * 3600;   // desloga depois de 8h sem uso
+const LOGIN_MAX_FAILS    = 5;          // erros de senha permitidos ...
+const LOGIN_WINDOW       = 600;        // ... dentro destes segundos, por IP
+
+function admin_session_start(): void
+{
+    if (session_status() === PHP_SESSION_ACTIVE) {
+        return;
+    }
+    $https = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
+        || (($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https');
+    session_name('barbearia_admin');
+    session_set_cookie_params([
+        'lifetime' => 0,
+        'path'     => '/',
+        'secure'   => $https,
+        'httponly' => true,
+        'samesite' => 'Strict',
+    ]);
+    ini_set('session.use_strict_mode', '1');
+    session_start();
+}
+
+function admin_configured(): bool
+{
+    return (string)config()['admin_password_hash'] !== '';
+}
+
+function is_admin(): bool
+{
+    admin_session_start();
+    if (($_SESSION['admin'] ?? false) !== true) {
+        return false;
+    }
+    if (time() - (int)($_SESSION['seen'] ?? 0) > ADMIN_IDLE_SECONDS) {
+        admin_logout();
+        return false;
+    }
+    $_SESSION['seen'] = time();
+    return true;
+}
+
+function require_admin(): void
+{
+    if (!is_admin()) {
+        json_response(['error' => 'Acesso restrito ao dono.'], 401);
+    }
+}
+
+function admin_logout(): void
+{
+    admin_session_start();
+    $_SESSION = [];
+    if (ini_get('session.use_cookies')) {
+        $p = session_get_cookie_params();
+        setcookie(session_name(), '', [
+            'expires' => time() - 3600, 'path' => $p['path'], 'secure' => $p['secure'],
+            'httponly' => true, 'samesite' => 'Strict',
+        ]);
+    }
+    session_destroy();
+}
+
+/** Só confia em REMOTE_ADDR: cabeçalhos como X-Forwarded-For podem ser forjados. */
+function client_ip(): string
+{
+    return (string)($_SERVER['REMOTE_ADDR'] ?? 'desconhecido');
+}
+
+function login_blocked(): bool
+{
+    $st = db()->prepare('SELECT COUNT(*) FROM login_attempts WHERE ip = ? AND at > ?');
+    $st->execute([client_ip(), time() - LOGIN_WINDOW]);
+    return (int)$st->fetchColumn() >= LOGIN_MAX_FAILS;
+}
+
+function login_failed(): void
+{
+    $pdo = db();
+    $pdo->prepare('INSERT INTO login_attempts (ip, at) VALUES (?, ?)')->execute([client_ip(), time()]);
+    $pdo->prepare('DELETE FROM login_attempts WHERE at < ?')->execute([time() - 86400]);
+}
+
+function login_clear(): void
+{
+    db()->prepare('DELETE FROM login_attempts WHERE ip = ?')->execute([client_ip()]);
 }

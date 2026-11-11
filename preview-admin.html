@@ -1,0 +1,508 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Área do Dono</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+:root {
+  --bg: #14110f;
+  --card: #1f1a17;
+  --card-2: #28211d;
+  --line: #3a312b;
+  --text: #f3ece4;
+  --muted: #a89a8c;
+  --accent: #c8a15a;
+  --accent-ink: #1a1308;
+  --danger: #e0705f;
+  --ok: #7fb685;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body {
+  margin: 0; min-height: 100vh;
+  background: var(--bg); color: var(--text);
+  font: 16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+button, input { font: inherit; color: inherit; }
+button { cursor: pointer; }
+button:disabled { cursor: not-allowed; }
+
+.wrap { max-width: 860px; margin: 0 auto; }
+.top {
+  display: flex; align-items: center; gap: 12px;
+  padding: 14px 16px; border-bottom: 1px solid var(--line);
+}
+.avatar {
+  width: 42px; height: 42px; flex: none; border-radius: 50%;
+  display: grid; place-items: center;
+  background: var(--accent); color: var(--accent-ink); font-weight: 700; letter-spacing: .03em;
+}
+.who { min-width: 0; flex: 1; display: flex; flex-direction: column; line-height: 1.25; }
+.who strong { color: var(--accent); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.who small { color: var(--muted); font-size: .8rem; letter-spacing: .04em; text-transform: uppercase; }
+
+.main { padding: 20px 16px 40px; display: grid; gap: 16px; }
+h1, h2, h3 { margin: 0; text-wrap: balance; }
+h2 { font-size: 1.2rem; }
+.muted { margin: 0; color: var(--muted); font-size: .9rem; }
+.err { margin: 0; color: var(--danger); font-size: .9rem; min-height: 1.2em; }
+
+.btn, .ghost, .primary {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  padding: 10px 16px; border-radius: 10px; font-weight: 600; text-decoration: none;
+  background: var(--card); border: 1px solid var(--line); color: var(--text);
+}
+.btn:hover, .ghost:hover:not(:disabled) { border-color: var(--accent); }
+.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.primary:disabled { opacity: .6; }
+
+/* Login e aviso de configuração */
+.panel {
+  max-width: 420px; margin: 24px auto 0; width: 100%;
+  display: grid; gap: 14px; padding: 20px;
+  background: var(--card); border: 1px solid var(--line); border-radius: 14px;
+}
+.field { display: grid; gap: 6px; font-size: .9rem; color: var(--muted); }
+.field input {
+  width: 100%; padding: 13px 12px; font-size: 1rem;
+  background: var(--bg); color: var(--text); border: 1px solid var(--line); border-radius: 10px;
+}
+pre {
+  margin: 0; padding: 12px; overflow-x: auto; border-radius: 10px;
+  background: var(--bg); border: 1px solid var(--line); font-size: .85rem;
+}
+ol.steps { margin: 0; padding-left: 1.2em; display: grid; gap: 8px; color: var(--muted); font-size: .92rem; }
+ol.steps b { color: var(--text); }
+
+/* Barra de data */
+.datebar { display: grid; gap: 10px; }
+.dayrow { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 8px; align-items: stretch; }
+.dayrow button { width: 46px; font-size: 1.4rem; line-height: 1; padding: 0; }
+.dayrow input[type="date"] {
+  min-width: 0; width: 100%; padding: 10px 12px; text-align: center;
+  background: var(--card); color: var(--text); border: 1px solid var(--line); border-radius: 10px;
+}
+.dayhead { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.dayhead h2 { overflow-wrap: anywhere; }
+.badge {
+  display: inline-block; padding: 2px 10px; margin-left: 8px; vertical-align: middle;
+  border-radius: 999px; background: var(--accent); color: var(--accent-ink);
+  font-size: .75rem; font-weight: 700; letter-spacing: .04em; text-transform: uppercase;
+}
+
+/* Resumo */
+.tiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.tile { padding: 12px 14px; background: var(--card); border: 1px solid var(--line); border-radius: 12px; }
+.tile small { display: block; color: var(--muted); font-size: .78rem; letter-spacing: .04em; text-transform: uppercase; }
+.tile b { font-size: 1.5rem; font-variant-numeric: tabular-nums; }
+.tile.money b { color: var(--accent); }
+
+/* Filtro por barbeiro */
+.chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip {
+  padding: 7px 14px; border-radius: 999px; background: transparent;
+  border: 1px solid var(--line); color: var(--muted); font-size: .9rem;
+}
+.chip[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 700; }
+
+/* Lista de clientes */
+.list { display: grid; gap: 10px; }
+.bk {
+  display: grid; grid-template-columns: 76px minmax(0, 1fr); gap: 14px;
+  padding: 14px; background: var(--card); border: 1px solid var(--line); border-radius: 14px;
+}
+.bk[data-status="now"] { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+.bk[data-status="done"] { opacity: .6; }
+.when { display: flex; flex-direction: column; line-height: 1.2; }
+.when strong { font-size: 1.35rem; font-variant-numeric: tabular-nums; }
+.when small { color: var(--muted); font-size: .78rem; }
+.what { min-width: 0; display: grid; gap: 4px; }
+.what h3 { font-size: 1.05rem; overflow-wrap: anywhere; }
+.what p { margin: 0; overflow-wrap: anywhere; }
+.what .meta { color: var(--muted); font-size: .9rem; }
+.what .meta b { color: var(--accent); font-weight: 600; }
+.pill {
+  justify-self: start; padding: 2px 10px; border-radius: 999px; font-size: .75rem; font-weight: 700;
+  letter-spacing: .03em; border: 1px solid var(--line); color: var(--muted);
+}
+.pill.now { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.pill.next { border-color: var(--accent); color: var(--accent); }
+.pill.done { color: var(--ok); border-color: var(--ok); }
+.actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px; }
+.actions .btn { padding: 7px 12px; font-size: .88rem; }
+
+.empty {
+  padding: 28px 16px; text-align: center; border: 1px dashed var(--line); border-radius: 14px;
+  display: grid; gap: 6px;
+}
+.empty strong { font-size: 1.05rem; }
+.foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+
+button:focus-visible, input:focus-visible, a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+@media (min-width: 640px) {
+  .tiles { grid-template-columns: repeat(2, 200px); }
+  .bk { grid-template-columns: 100px minmax(0, 1fr); }
+}
+@media (max-width: 380px) {
+  .bk { grid-template-columns: 1fr; gap: 6px; }
+  .when { flex-direction: row; align-items: baseline; gap: 8px; }
+}
+
+.top, .main, .preview-note { padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+.preview-note { margin: 0; padding-block: 6px; border-bottom: 1px dashed var(--line); color: var(--muted); font-size: .75rem; text-align: center; }
+.preview-note b { color: var(--accent); }
+</style>
+</head>
+<body>
+<div class="wrap">
+    <header class="top">
+      <div class="avatar" id="avatar" aria-hidden="true">B</div>
+      <div class="who">
+        <strong id="shop-name">Barbearia</strong>
+        <small>Área do dono</small>
+      </div>
+      <button type="button" id="logout" class="ghost" hidden>Sair</button>
+    </header>
+    <p class="preview-note">Prévia com clientes de exemplo. Senha de demonstração: <b>demo1234</b></p>
+    <main id="root" class="main" aria-live="polite"></main>
+  </div>
+<script>
+// API simulada da área do dono: reproduz api/admin/session, login, logout e agenda do PHP.
+(function () {
+  var PASSWORD = "demo1234";
+  var logged = false;
+  var pros = [{ id: 1, name: "Rafael Costa" }, { id: 2, name: "Diego Martins" }];
+  var WD = ["domingo", "segunda-feira", "terça-feira", "quarta-feira", "quinta-feira", "sexta-feira", "sábado"];
+  var pad = function (n) { return String(n).padStart(2, "0"); };
+  var ymd = function (d) { return d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate()); };
+  var toMin = function (t) { var p = t.split(":").map(Number); return p[0] * 60 + p[1]; };
+  var toHm = function (m) { return pad(Math.floor(m / 60)) + ":" + pad(m % 60); };
+  var today = new Date(); today.setHours(0, 0, 0, 0);
+  var plus = function (n) { var d = new Date(today); d.setDate(d.getDate() + n); return ymd(d); };
+
+  // Clientes fictícios. Duração e valor seguem a lista de serviços de exemplo.
+  var rows = [
+    [0, "08:00", "Carlos Mendes", "55229999000" + "1", "carlos@email.com", 1, ["Disfarçado / Degradê"], 45, 35],
+    [0, "09:30", "Marcos Alves", "552299990002", "", 2, ["Tesoura", "Sobrancelha"], 50, 40],
+    [0, "10:30", "João Pereira", "552299990003", "", 1, ["Cabelo e barba"], 90, 65],
+    [0, "14:00", "Lucas Rocha", "552299990004", "lucas@email.com", 2, ["Corte + pigmentação"], 60, 50],
+    [0, "16:30", "André Souza", "552299990005", "", 1, ["Barba"], 40, 30],
+    [1, "09:00", "Pedro Santos", "552299990006", "", 1, ["Barba"], 40, 30],
+    [1, "11:00", "Bruno Dias", "552299990007", "bruno@email.com", 2, ["Disfarçado / Degradê", "Sobrancelha"], 50, 40],
+    [1, "15:00", "Rafael Lima", "552299990008", "", 2, ["Platinado"], 120, 100],
+    [-1, "08:30", "Felipe Nunes", "552299990009", "", 1, ["Cabelo e barba"], 90, 65],
+    [-1, "13:30", "Gustavo Reis", "552299990010", "", 2, ["Tesoura"], 45, 35]
+  ];
+  var bookings = rows.map(function (r, i) {
+    var p = pros.filter(function (x) { return x.id === r[5]; })[0];
+    return { id: i + 1, date: plus(r[0]), start: toMin(r[1]), end: toMin(r[1]) + r[7], name: r[2], phone: r[3], email: r[4],
+      pid: p.id, professional: p.name, services: r[6], minutes: r[7], total: r[8] };
+  });
+
+  function reply(body, status) {
+    return new Promise(function (resolve) {
+      setTimeout(function () {
+        resolve(new Response(JSON.stringify(body), { status: status || 200, headers: { "Content-Type": "application/json" } }));
+      }, 140);
+    });
+  }
+  function parseDate(s) {
+    var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s || "");
+    if (!m) return null;
+    var d = new Date(+m[1], +m[2] - 1, +m[3]);
+    return ymd(d) === s ? d : null;
+  }
+
+  var realFetch = window.fetch.bind(window);
+  window.fetch = function (url, opts) {
+    var u = String(url);
+    if (u.indexOf("api/admin/") < 0) return realFetch(url, opts);
+    var body = {};
+    try { body = JSON.parse((opts && opts.body) || "{}"); } catch (e) { body = {}; }
+
+    if (u.indexOf("session.php") >= 0) {
+      return reply({ configured: true, logged: logged, shop_name: "Barbearia Exemplo", today: ymd(today) });
+    }
+    if (u.indexOf("login.php") >= 0) {
+      if (body.password === PASSWORD) { logged = true; return reply({ ok: true }); }
+      return reply({ error: "Senha incorreta." }, 401);
+    }
+    if (u.indexOf("logout.php") >= 0) { logged = false; return reply({ ok: true }); }
+    if (u.indexOf("agenda.php") >= 0) {
+      if (!logged) return reply({ error: "Acesso restrito ao dono." }, 401);
+      var q = new URLSearchParams(u.split("?")[1] || "");
+      var ds = q.get("date") || ymd(today);
+      var d = parseDate(ds);
+      if (!d) return reply({ error: "Data inválida." }, 422);
+      var now = new Date();
+      var list = bookings.filter(function (b) { return b.date === ds; }).sort(function (a, b) { return a.start - b.start; });
+      var revenue = list.reduce(function (s, b) { return s + b.total; }, 0);
+      return reply({
+        date: ds, today: ymd(today),
+        long: WD[d.getDay()] + ", " + pad(d.getDate()) + "/" + pad(d.getMonth() + 1) + "/" + d.getFullYear(),
+        now_min: ds === ymd(today) ? now.getHours() * 60 + now.getMinutes() : null,
+        professionals: pros,
+        bookings: list.map(function (b) {
+          return { id: b.id, start_min: b.start, end_min: b.end, time: toHm(b.start), end_time: toHm(b.end), minutes: b.minutes,
+            name: b.name, phone: b.phone, email: b.email, professional_id: b.pid, professional: b.professional, services: b.services, total: b.total };
+        }),
+        totals: { count: list.length, revenue: revenue }
+      });
+    }
+    return reply({ error: "Rota desconhecida." }, 404);
+  };
+})();
+
+</script>
+<script type="module">
+// Área do dono. Compile com: npm run build  (gera public/admin.js)
+const API = "../api/admin/";
+const REFRESH_MS = 60000;
+const root = document.getElementById("root");
+const logoutBtn = document.getElementById("logout");
+const state = {
+    today: "",
+    date: "",
+    filter: 0, // 0 = todos os barbeiros
+    agenda: null,
+};
+let seq = 0;
+let timer;
+/* ---------- Utilidades ---------- */
+function h(tag, props = {}, ...kids) {
+    const el = document.createElement(tag);
+    for (const [k, v] of Object.entries(props)) {
+        if (v === undefined)
+            continue;
+        if (k === "class")
+            el.className = v;
+        else
+            el.setAttribute(k, v);
+    }
+    for (const c of kids) {
+        if (c === null || c === false)
+            continue;
+        el.append(c);
+    }
+    return el;
+}
+const pad = (n) => String(n).padStart(2, "0");
+const brl = (v) => v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+const digits = (v) => v.replace(/\D/g, "");
+const initials = (n) => n.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w.charAt(0)).join("").toUpperCase();
+const clock = () => new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+function formatPhone(phone) {
+    const d = phone.startsWith("55") ? phone.slice(2) : phone;
+    if (d.length === 11)
+        return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`;
+    if (d.length === 10)
+        return `(${d.slice(0, 2)}) ${d.slice(2, 6)}-${d.slice(6)}`;
+    return phone;
+}
+function shiftDay(ymd, n) {
+    const [y, m, d] = ymd.split("-").map(Number);
+    const t = new Date(y, m - 1, d + n);
+    return `${t.getFullYear()}-${pad(t.getMonth() + 1)}-${pad(t.getDate())}`;
+}
+async function api(path, body) {
+    const res = await fetch(API + path, {
+        method: body === undefined ? "GET" : "POST",
+        credentials: "same-origin",
+        headers: body === undefined ? {} : { "Content-Type": "application/json" },
+        body: body === undefined ? undefined : JSON.stringify(body),
+    });
+    return { status: res.status, data: (await res.json()) };
+}
+function stopRefresh() {
+    window.clearInterval(timer);
+    timer = undefined;
+}
+/* ---------- Telas de acesso ---------- */
+function showSetup() {
+    stopRefresh();
+    logoutBtn.hidden = true;
+    root.replaceChildren(h("div", { class: "panel" }, h("h2", {}, "Falta definir a senha do dono"), h("p", { class: "muted" }, "Por segurança, a área do dono fica bloqueada até você criar uma senha."), h("ol", { class: "steps" }, h("li", {}, "No terminal, dentro da pasta do projeto, rode:"), h("li", {}, h("pre", {}, "php tools/gerar-senha.php")), h("li", {}, "Copie o texto gerado e cole em ", h("b", {}, "admin_password_hash"), " no arquivo ", h("b", {}, "config.php"), ", entre aspas simples."), h("li", {}, "Recarregue esta página."))));
+}
+function showLogin(message = "") {
+    stopRefresh();
+    logoutBtn.hidden = true;
+    const pw = h("input", { id: "pw", name: "password", type: "password", autocomplete: "current-password", required: "" });
+    const error = h("p", { class: "err", role: "alert" }, message);
+    const submit = h("button", { type: "submit", class: "primary" }, "Entrar");
+    const form = h("form", { class: "panel", novalidate: "" }, h("h2", {}, "Entrar na área do dono"), h("label", { class: "field", for: "pw" }, h("span", {}, "Senha"), pw), error, submit);
+    form.addEventListener("submit", (ev) => {
+        ev.preventDefault();
+        if (!pw.value) {
+            error.textContent = "Digite a senha.";
+            return;
+        }
+        submit.disabled = true;
+        error.textContent = "";
+        void (async () => {
+            try {
+                const { status, data } = await api("login.php", { password: pw.value });
+                if (status === 200 && data.ok) {
+                    await showAgenda();
+                    return;
+                }
+                error.textContent = data.error ?? "Não foi possível entrar.";
+            }
+            catch {
+                error.textContent = "Falha de conexão. Tente novamente.";
+            }
+            pw.value = "";
+            pw.focus();
+            submit.disabled = false;
+        })();
+    });
+    root.replaceChildren(form);
+    pw.focus();
+}
+/* ---------- Agenda do dia ---------- */
+function statusOf(b, bookings, now) {
+    if (now === null)
+        return "later";
+    if (b.end_min <= now)
+        return "done";
+    if (b.start_min <= now)
+        return "now";
+    const upcoming = bookings.filter((x) => x.start_min > now).sort((a, c) => a.start_min - c.start_min)[0];
+    return upcoming && upcoming.start_min === b.start_min ? "next" : "later";
+}
+const STATUS_LABEL = { done: "Concluído", now: "Em atendimento", next: "Próximo" };
+function bookingCard(b, all, now) {
+    const status = statusOf(b, all, now);
+    return h("article", { class: "bk", "data-status": status }, h("div", { class: "when" }, h("strong", {}, b.time), h("small", {}, `até ${b.end_time}`)), h("div", { class: "what" }, status !== "later" ? h("span", { class: `pill ${status}` }, STATUS_LABEL[status]) : false, h("h3", {}, b.name), h("p", {}, b.services.join(" + ")), h("p", { class: "meta" }, `${b.professional} · ${b.minutes} min · `, h("b", {}, brl(b.total))), h("p", { class: "meta" }, formatPhone(b.phone), b.email ? ` · ${b.email}` : ""), h("div", { class: "actions" }, h("a", { class: "btn", href: `https://wa.me/${digits(b.phone)}`, target: "_blank", rel: "noopener" }, "WhatsApp"), h("a", { class: "btn", href: `tel:+${digits(b.phone)}` }, "Ligar"))));
+}
+function renderContent(box) {
+    const a = state.agenda;
+    if (!a)
+        return;
+    const isToday = a.date === a.today;
+    const visible = a.bookings.filter((b) => state.filter === 0 || b.professional_id === state.filter);
+    const revenue = visible.reduce((s, b) => s + b.total, 0);
+    const chips = h("div", { class: "chips", role: "group", "aria-label": "Filtrar por barbeiro" });
+    const options = [
+        { id: 0, label: `Todos (${a.bookings.length})` },
+        ...a.professionals.map((p) => ({ id: p.id, label: `${p.name} (${a.bookings.filter((b) => b.professional_id === p.id).length})` })),
+    ];
+    for (const o of options) {
+        const chip = h("button", { type: "button", class: "chip", "aria-pressed": String(state.filter === o.id) }, o.label);
+        chip.addEventListener("click", () => { state.filter = o.id; renderContent(box); });
+        chips.append(chip);
+    }
+    const list = visible.length
+        ? h("div", { class: "list" }, ...visible.map((b) => bookingCard(b, a.bookings, a.now_min)))
+        : h("div", { class: "empty" }, h("strong", {}, "Nenhum cliente agendado"), h("p", { class: "muted" }, isToday ? "Quando alguém agendar para hoje, aparece aqui." : "Não há agendamentos neste dia."));
+    const refresh = h("button", { type: "button", class: "ghost" }, "Atualizar");
+    refresh.addEventListener("click", () => { void load(); });
+    const parts = [
+        h("div", { class: "tiles" }, h("div", { class: "tile" }, h("small", {}, "Clientes"), h("b", {}, String(visible.length))), h("div", { class: "tile money" }, h("small", {}, "Total do dia"), h("b", {}, brl(revenue)))),
+    ];
+    if (a.professionals.length > 1)
+        parts.push(chips);
+    parts.push(list, h("div", { class: "foot" }, h("span", { class: "muted" }, `Atualizado às ${clock()}`), refresh));
+    box.replaceChildren(...parts);
+}
+async function load() {
+    const token = ++seq;
+    const content = document.getElementById("content");
+    const heading = document.getElementById("day-title");
+    if (!content)
+        return;
+    try {
+        const { status, data } = await api(`agenda.php?date=${encodeURIComponent(state.date)}`);
+        if (token !== seq)
+            return;
+        if (status === 401) {
+            showLogin("Sua sessão terminou. Entre novamente.");
+            return;
+        }
+        if (status !== 200) {
+            content.replaceChildren(h("p", { class: "err" }, data.error ?? "Não foi possível carregar a agenda."));
+            return;
+        }
+        state.agenda = data;
+        state.today = data.today;
+        if (heading) {
+            heading.textContent = data.long.charAt(0).toUpperCase() + data.long.slice(1);
+            if (data.date === data.today)
+                heading.append(h("span", { class: "badge" }, "Hoje"));
+        }
+        renderContent(content);
+    }
+    catch {
+        if (token === seq)
+            content.replaceChildren(h("p", { class: "err" }, "Falha de conexão. Tente atualizar."));
+    }
+}
+async function showAgenda() {
+    logoutBtn.hidden = false;
+    state.agenda = null;
+    state.filter = 0;
+    state.date = state.today; // sempre abre no dia de hoje
+    const input = h("input", { id: "day", type: "date", "aria-label": "Escolher dia" });
+    input.value = state.date;
+    const prev = h("button", { type: "button", class: "ghost", "aria-label": "Dia anterior" }, "‹");
+    const next = h("button", { type: "button", class: "ghost", "aria-label": "Próximo dia" }, "›");
+    const todayBtn = h("button", { type: "button", class: "ghost" }, "Ir para hoje");
+    const go = (ymd) => {
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(ymd))
+            return;
+        state.date = ymd;
+        state.filter = 0;
+        input.value = ymd;
+        todayBtn.hidden = ymd === state.today;
+        void load();
+    };
+    prev.addEventListener("click", () => go(shiftDay(state.date, -1)));
+    next.addEventListener("click", () => go(shiftDay(state.date, 1)));
+    input.addEventListener("change", () => go(input.value));
+    todayBtn.addEventListener("click", () => go(state.today));
+    todayBtn.hidden = true;
+    root.replaceChildren(h("div", { class: "datebar" }, h("div", { class: "dayrow" }, prev, input, next), h("div", { class: "dayhead" }, h("h2", { id: "day-title" }, "Carregando..."), todayBtn)), h("div", { id: "content", class: "main", style: "padding:0" }, h("p", { class: "muted" }, "Buscando a agenda...")));
+    await load();
+    // Atualiza sozinha para o dono ver novos agendamentos sem recarregar a página.
+    stopRefresh();
+    timer = window.setInterval(() => {
+        if (document.visibilityState === "visible")
+            void load();
+    }, REFRESH_MS);
+}
+/* ---------- Início ---------- */
+logoutBtn.addEventListener("click", () => {
+    void (async () => {
+        try {
+            await api("logout.php", {});
+        }
+        finally {
+            showLogin();
+        }
+    })();
+});
+async function boot() {
+    const { data } = await api("session.php");
+    const name = data.shop_name;
+    document.getElementById("shop-name").textContent = name;
+    document.getElementById("avatar").textContent = initials(name);
+    document.title = `Área do dono - ${name}`;
+    state.today = data.today;
+    if (!data.configured)
+        showSetup();
+    else if (!data.logged)
+        showLogin();
+    else
+        await showAgenda();
+}
+boot().catch(() => {
+    root.replaceChildren(h("p", { class: "err" }, "Não foi possível carregar a área do dono."));
+});
+export {};
+
+</script>
+</body>
+</html>

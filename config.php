@@ -46,6 +46,11 @@ return [
         ['id' => 18, 'name' => 'Camuflagem pelos brancos',      'minutes' => 20,  'price' => 30.00],
     ],
 
+    // Área do dono (/admin/). Guarde aqui o HASH da senha, nunca a senha em texto.
+    // Gere com:  php tools/gerar-senha.php   (também vale a variável ADMIN_PASSWORD_HASH).
+    // Enquanto estiver vazio, a área do dono fica bloqueada para todos.
+    'admin_password_hash' => getenv('ADMIN_PASSWORD_HASH') ?: '',
+
     // Envio automático via WhatsApp Cloud API (Meta). Se vazio, o sistema
     // devolve um link wa.me com a mensagem pronta como alternativa.
     'whatsapp_cloud'  => [

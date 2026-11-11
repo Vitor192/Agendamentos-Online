@@ -37,6 +37,9 @@ button:disabled { cursor: not-allowed; }
 .who small { color: var(--muted); font-size: .8rem; letter-spacing: .04em; text-transform: uppercase; }
 
 .main { padding: 20px 16px 40px; display: grid; gap: 16px; }
+.flash { padding: 10px 16px 0; }
+.flash:empty { display: none; }
+.back-link { justify-self: center; color: var(--accent); font-size: .92rem; text-underline-offset: 3px; }
 h1, h2, h3 { margin: 0; text-wrap: balance; }
 h2 { font-size: 1.2rem; }
 .muted { margin: 0; color: var(--muted); font-size: .9rem; }

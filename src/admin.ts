@@ -27,6 +27,12 @@ const REFRESH_MS = 60_000;
 
 const root = document.getElementById("root") as HTMLElement;
 const logoutBtn = document.getElementById("logout") as HTMLButtonElement;
+const flashEl = document.getElementById("flash") as HTMLElement;
+
+// Página para onde o dono vai ao sair (definida em <meta name="home-url"> no admin/index.html).
+// Vazio = fica na tela de senha.
+const homeMeta = document.querySelector<HTMLMetaElement>('meta[name="home-url"]');
+const HOME = homeMeta ? homeMeta.content : "../";
 
 const state = {
   today: "",
@@ -123,6 +129,7 @@ function showLogin(message = ""): void {
     h("label", { class: "field", for: "pw" }, h("span", {}, "Senha"), pw),
     error,
     submit,
+    HOME ? h("a", { class: "back-link", href: HOME }, "← Ir para a página de agendamento") : false,
   );
   form.addEventListener("submit", (ev) => {
     ev.preventDefault();
@@ -405,14 +412,40 @@ async function showAgenda(): Promise<void> {
 
 /* ---------- Início ---------- */
 
+// Sair: encerra a sessão no servidor e leva o dono para a página de agendamento dos clientes.
+// Só sai de fato se o servidor confirmar, para não deixar a sessão aberta sem o dono perceber.
 logoutBtn.addEventListener("click", () => {
   void (async () => {
+    logoutBtn.disabled = true;
+    flashEl.textContent = "";
     try {
-      await api<ApiReply>("logout.php", {});
-    } finally {
-      showLogin();
+      const { status, data } = await api<ApiReply>("logout.php", {});
+      if (status === 200 && data.ok) {
+        stopRefresh();
+        if (HOME) {
+          window.location.assign(HOME);
+          return;
+        }
+        logoutBtn.disabled = false;
+        showLogin();
+        return;
+      }
+      flashEl.textContent = data.error ?? "Não foi possível sair. Tente novamente.";
+    } catch {
+      flashEl.textContent = "Falha de conexão. Você continua conectado: tente sair de novo.";
     }
+    logoutBtn.disabled = false;
   })();
+});
+
+// Ao voltar para esta página pelo botão "Voltar" do navegador, confere a sessão de novo:
+// quem já saiu vê a tela de senha, e não a agenda guardada em memória.
+window.addEventListener("pageshow", (ev) => {
+  if (ev.persisted) {
+    flashEl.textContent = "";
+    logoutBtn.disabled = false;
+    void boot();
+  }
 });
 
 async function boot(): Promise<void> {

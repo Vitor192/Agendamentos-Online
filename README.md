@@ -55,6 +55,7 @@ Tela protegida por senha, só para o dono da barbearia, em `/admin/`.
 - **Filtro por barbeiro** para ver só a agenda de um deles.
 - Botões **WhatsApp** e **Ligar** em cada cliente.
 - **Cancelar agendamento** (veja a seção abaixo).
+- O botão **Sair** encerra a sessão e leva o dono direto para a **página de agendamento dos clientes**. A tela de senha também tem o link "Ir para a página de agendamento". Para mudar o destino, altere `<meta name="home-url">` em `public/admin/index.html` (vazio = o dono fica na tela de senha).
 - Atualiza sozinha a cada minuto, então novos agendamentos aparecem sem recarregar a página.
 
 ### Cancelar um agendamento e avisar o cliente
@@ -100,7 +101,7 @@ Como o acesso é protegido:
 
 - A senha é conferida com `password_verify` contra o hash. Sem hash configurado, ninguém entra.
 - **5 senhas erradas em 10 minutos bloqueiam novas tentativas** daquele IP.
-- A sessão usa cookie `HttpOnly` e `SameSite=Strict` (e `Secure` em HTTPS), troca de identificador ao entrar e expira após 8 horas sem uso.
+- A sessão usa cookie `HttpOnly` e `SameSite=Strict` (e `Secure` em HTTPS), troca de identificador ao entrar e expira após 8 horas sem uso. O botão "Voltar" do navegador, depois de sair, mostra a tela de senha e não a agenda.
 - Os dados da agenda só saem da API para quem está logado. Sem login, a API responde 401.
 - A página tem `noindex`, para não aparecer em buscadores.
 

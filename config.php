@@ -46,6 +46,28 @@ return [
         ['id' => 18, 'name' => 'Camuflagem pelos brancos',      'minutes' => 20,  'price' => 30.00],
     ],
 
+    // Endereço público do site (opcional). Se preenchido, o aviso de cancelamento
+    // enviado ao cliente inclui o link para ele agendar outro horário.
+    'public_url'      => getenv('PUBLIC_URL') ?: '',
+
+    // Motivos que o dono pode escolher ao cancelar um agendamento.
+    // 'label' aparece para o dono; 'text' entra na mensagem enviada ao cliente
+    // ("Motivo: ..."). A chave (pessoal, saude, ...) é gravada no banco.
+    'cancel_reasons'  => [
+        'pessoal' => [
+            'label' => 'Compromisso pessoal, hoje não consigo te atender',
+            'text'  => 'surgiu um compromisso pessoal e hoje não consigo te atender',
+        ],
+        'saude' => [
+            'label' => 'Imprevisto de saúde',
+            'text'  => 'tive um imprevisto de saúde e não consigo te atender nesse horário',
+        ],
+        'barbearia' => [
+            'label' => 'Imprevisto na barbearia',
+            'text'  => 'tivemos um imprevisto na barbearia e não conseguiremos atender nesse horário',
+        ],
+    ],
+
     // Área do dono (/admin/). Guarde aqui o HASH da senha, nunca a senha em texto.
     // Gere com:  php tools/gerar-senha.php   (também vale a variável ADMIN_PASSWORD_HASH).
     // Enquanto estiver vazio, a área do dono fica bloqueada para todos.

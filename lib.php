@@ -48,6 +48,17 @@ function db(): PDO
     $pdo->exec('CREATE INDEX IF NOT EXISTS idx_bookings_phone ON bookings(phone, status)');
     $pdo->exec('CREATE TABLE IF NOT EXISTS login_attempts (ip TEXT NOT NULL, at INTEGER NOT NULL)');
     $pdo->exec('CREATE INDEX IF NOT EXISTS idx_login_attempts ON login_attempts(ip, at)');
+    // Bancos criados antes do cancelamento ganham as colunas novas sem perder dados.
+    $cols = array_column($pdo->query('PRAGMA table_info(bookings)')->fetchAll(PDO::FETCH_ASSOC), 'name');
+    foreach (['cancel_reason' => 'TEXT', 'cancelled_at' => 'TEXT'] as $col => $type) {
+        if (!in_array($col, $cols, true)) {
+            try {
+                $pdo->exec("ALTER TABLE bookings ADD COLUMN $col $type");
+            } catch (PDOException $e) {
+                // Outro pedido simultâneo já criou a coluna: nada a fazer.
+            }
+        }
+    }
     return $pdo;
 }
 
@@ -403,3 +414,50 @@ function login_clear(): void
 {
     db()->prepare('DELETE FROM login_attempts WHERE ip = ?')->execute([client_ip()]);
 }
+
+/* ---------- Cancelamento pelo dono ---------- */
+
+function cancel_reason_text(?string $key): string
+{
+    $r = config()['cancel_reasons'][$key ?? ''] ?? null;
+    return $r['text'] ?? 'precisei cancelar o seu horário';
+}
+
+function cancel_reason_label(?string $key): string
+{
+    $r = config()['cancel_reasons'][$key ?? ''] ?? null;
+    return $r['label'] ?? 'Motivo não informado';
+}
+
+/** Mensagem que o dono envia ao cliente avisando do cancelamento. */
+function client_cancel_message(array $row): string
+{
+    $cfg = config();
+    $d = parse_date((string)$row['date']);
+    $first = preg_split('/\s+/', trim((string)$row['name']))[0] ?? '';
+    $pro = find_professional((int)$row['professional_id']);
+    $services = json_decode((string)$row['services'], true) ?: [];
+
+    $msg = "Olá, {$first}! Aqui é da " . $cfg['shop_name'] . ".\n\n"
+        . "Infelizmente preciso cancelar o seu agendamento:\n"
+        . "📅 " . $d->format('d/m/Y') . ' (' . WEEKDAYS_LONG[(int)$d->format('N')] . ")\n"
+        . "🕒 " . min_to_hm((int)$row['start_min']) . "\n"
+        . "🧾 " . implode(' + ', $services) . "\n"
+        . "💈 " . ($pro['name'] ?? '-') . "\n\n"
+        . "Motivo: " . cancel_reason_text($row['cancel_reason'] ?? null) . ".\n\n"
+        . "Peço desculpas pelo transtorno!";
+    if ((string)$cfg['public_url'] !== '') {
+        $msg .= "\nSe quiser, é só agendar outro horário: " . $cfg['public_url'];
+    }
+    return $msg;
+}
+
+function client_notify_link(array $row): string
+{
+    return whatsapp_link((string)$row['phone'], client_cancel_message($row));
+}
+
+// Aplica o fuso horário da barbearia assim que a biblioteca carrega, antes de qualquer uso de datas.
+// Sem isto, uma data lida antes da primeira chamada a config() usaria o fuso padrão do PHP (UTC)
+// e "hoje" poderia ser tratado como passado.
+config();

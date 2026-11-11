@@ -126,6 +126,38 @@ ol.steps b { color: var(--text); }
 .actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px; }
 .actions .btn { padding: 7px 12px; font-size: .88rem; }
 
+/* Cancelamento */
+.tile .sub { display: block; margin-top: 2px; color: var(--danger); font-size: .8rem; }
+.bk[data-status="cancelled"] { border-style: dashed; }
+.bk[data-status="cancelled"] .when strong,
+.bk[data-status="cancelled"] h3 { text-decoration: line-through; color: var(--muted); }
+.pill.cancelled { color: var(--danger); border-color: var(--danger); }
+.btn.warn { color: var(--danger); border-color: var(--danger); background: transparent; }
+.btn.wa { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.danger {
+  padding: 10px 16px; border-radius: 10px; font-weight: 700;
+  background: var(--danger); border: 1px solid var(--danger); color: #2a0d08;
+}
+.danger:disabled { opacity: .4; }
+.cancel-panel {
+  display: grid; gap: 10px; margin-top: 8px; padding: 12px;
+  background: var(--bg); border: 1px solid var(--danger); border-radius: 12px;
+}
+.cancel-panel strong { overflow-wrap: anywhere; }
+.reasons { display: grid; gap: 8px; }
+.reason {
+  display: flex; align-items: flex-start; gap: 10px; padding: 10px 12px; cursor: pointer;
+  background: var(--card); border: 1px solid var(--line); border-radius: 10px; font-size: .95rem;
+}
+.reason:has(input:checked) { border-color: var(--danger); background: var(--card-2); }
+.reason input { flex: none; width: 18px; height: 18px; margin: 2px 0 0; accent-color: var(--danger); }
+.notice {
+  display: grid; gap: 8px; padding: 14px;
+  background: var(--card-2); border: 1px solid var(--accent); border-radius: 14px;
+}
+.notice .actions { margin-top: 2px; }
+.notice .primary { padding: 10px 16px; }
+
 .empty {
   padding: 28px 16px; text-align: center; border: 1px dashed var(--line); border-radius: 14px;
   display: grid; gap: 6px;

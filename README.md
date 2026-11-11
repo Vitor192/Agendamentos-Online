@@ -54,7 +54,37 @@ Tela protegida por senha, só para o dono da barbearia, em `/admin/`.
 - Setas de dia anterior e próximo dia, seletor de data e botão **Ir para hoje** para ver qualquer outro dia, passado ou futuro.
 - **Filtro por barbeiro** para ver só a agenda de um deles.
 - Botões **WhatsApp** e **Ligar** em cada cliente.
+- **Cancelar agendamento** (veja a seção abaixo).
 - Atualiza sozinha a cada minuto, então novos agendamentos aparecem sem recarregar a página.
+
+### Cancelar um agendamento e avisar o cliente
+
+Em cada cliente que ainda não foi atendido há o botão **Cancelar agendamento**:
+
+1. O dono escolhe o **motivo**. Já vêm 3 opções:
+   - Compromisso pessoal, hoje não consigo te atender
+   - Imprevisto de saúde
+   - Imprevisto na barbearia
+2. Ao confirmar, o agendamento é cancelado e **o horário volta a ficar livre** para novos clientes.
+3. Aparece o botão **Avisar o cliente pelo WhatsApp**, que abre a conversa com o cliente com a mensagem pronta:
+
+```
+Olá, Carlos! Aqui é da Barbearia Exemplo.
+
+Infelizmente preciso cancelar o seu agendamento:
+📅 11/11/2026 (quarta-feira)
+🕒 14:00
+🧾 Disfarçado / Degradê
+💈 Rafael Costa
+
+Motivo: surgiu um compromisso pessoal e hoje não consigo te atender.
+
+Peço desculpas pelo transtorno!
+```
+
+O cartão cancelado continua na lista, riscado e com o motivo, e **mantém o botão de avisar**. Assim o dono pode avisar o cliente depois, se não fizer na hora. Cancelados não entram na contagem de clientes nem no total do dia. Um atendimento que já passou não pode ser cancelado.
+
+Os motivos e os textos da mensagem ficam em `cancel_reasons` no `config.php` e podem ser trocados ou ampliados. Se `public_url` estiver preenchido, a mensagem inclui o link para o cliente marcar outro horário.
 
 ### Como proteger com senha
 
@@ -123,7 +153,7 @@ public/             única pasta que deve ficar acessível na web
   api/slots.php     GET   horários livres (data + barbeiro + serviços)
   api/book.php      POST  cria o agendamento
   api/my.php        GET   próximos agendamentos (telefone + nome)
-  api/admin/        área do dono: session, login, logout, agenda (exigem senha)
+  api/admin/        área do dono: session, login, logout, agenda, cancel (exigem senha)
   admin/index.html  tela da área do dono
   admin.css         estilos da área do dono
   admin.js          gerado a partir de src/admin.ts (já incluído)
@@ -146,7 +176,8 @@ data/               banco SQLite, criado automaticamente (fora do Git)
 | `api/admin/session.php` | GET | nenhum | `configured`, `logged`, `today` |
 | `api/admin/login.php` | POST (JSON) | `password` | `ok`. Erro 401 se a senha estiver errada e 429 após muitas tentativas |
 | `api/admin/logout.php` | POST | nenhum | `ok` |
-| `api/admin/agenda.php` | GET | `date` (opcional, padrão hoje) | `bookings`, `totals`, `professionals`. Erro 401 sem login |
+| `api/admin/agenda.php` | GET | `date` (opcional, padrão hoje) | `bookings` (inclui cancelados), `totals`, `professionals`, `cancel_reasons`. Erro 401 sem login |
+| `api/admin/cancel.php` | POST (JSON) | `id`, `reason` | `ok`, `notify_link` (WhatsApp do cliente). Erros: 401 sem login, 409 se já cancelado, 422 se já passou |
 
 ## Como rodar
 
@@ -180,6 +211,9 @@ Para só ver a interface, sem PHP, abra o `preview.html` (agendamento) ou o `pre
 | `slot_step` | De quanto em quanto tempo um atendimento pode começar, em minutos |
 | `professionals` | Barbeiros. Cada um pode ter o próprio `whatsapp`; com `null` usa o padrão |
 | `services` | Serviços com nome, duração (min) e preço. A lista incluída é um exemplo |
+| `cancel_reasons` | Motivos de cancelamento e o texto que vai na mensagem ao cliente |
+| `public_url` | Endereço do site (opcional), incluído na mensagem de cancelamento |
+| `admin_password_hash` | Hash da senha do dono. Vazio = área do dono bloqueada |
 | `barber_whatsapp` | WhatsApp padrão: DDI + DDD + número, só dígitos (ex.: `5522999999999`). Aceita a variável `BARBER_WHATSAPP` |
 
 ## WhatsApp: dois modos
@@ -193,8 +227,9 @@ Aponte o domínio para a pasta `public/`, assim `config.php`, `lib.php` e `data/
 
 ## Limitações conhecidas
 
-- Não há cancelamento nem remarcação pelo cliente. O barbeiro cuida disso pelo WhatsApp.
+- O cliente não cancela nem remarca sozinho pelo site. Isso é feito pelo dono, na área do dono.
 - A consulta "Meus agendamentos" não limita o número de tentativas. Vale adicionar um limite se o site ficar público.
-- A área do dono é de leitura: não cancela nem remarca agendamentos.
+- O dono cancela, mas não remarca: depois de cancelar, o cliente agenda outro horário pelo site.
+- O aviso de cancelamento ao cliente é enviado pelo próprio WhatsApp do dono, ao tocar no botão. O sistema não envia sozinho.
 - O bloqueio por tentativas é por IP. Atrás de um proxy ou CDN, todos podem aparecer com o mesmo IP.
 - Há uma única senha de dono, sem contas separadas por barbeiro.

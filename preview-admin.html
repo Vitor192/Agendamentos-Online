@@ -134,6 +134,38 @@ ol.steps b { color: var(--text); }
 .actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px; }
 .actions .btn { padding: 7px 12px; font-size: .88rem; }
 
+/* Cancelamento */
+.tile .sub { display: block; margin-top: 2px; color: var(--danger); font-size: .8rem; }
+.bk[data-status="cancelled"] { border-style: dashed; }
+.bk[data-status="cancelled"] .when strong,
+.bk[data-status="cancelled"] h3 { text-decoration: line-through; color: var(--muted); }
+.pill.cancelled { color: var(--danger); border-color: var(--danger); }
+.btn.warn { color: var(--danger); border-color: var(--danger); background: transparent; }
+.btn.wa { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.danger {
+  padding: 10px 16px; border-radius: 10px; font-weight: 700;
+  background: var(--danger); border: 1px solid var(--danger); color: #2a0d08;
+}
+.danger:disabled { opacity: .4; }
+.cancel-panel {
+  display: grid; gap: 10px; margin-top: 8px; padding: 12px;
+  background: var(--bg); border: 1px solid var(--danger); border-radius: 12px;
+}
+.cancel-panel strong { overflow-wrap: anywhere; }
+.reasons { display: grid; gap: 8px; }
+.reason {
+  display: flex; align-items: flex-start; gap: 10px; padding: 10px 12px; cursor: pointer;
+  background: var(--card); border: 1px solid var(--line); border-radius: 10px; font-size: .95rem;
+}
+.reason:has(input:checked) { border-color: var(--danger); background: var(--card-2); }
+.reason input { flex: none; width: 18px; height: 18px; margin: 2px 0 0; accent-color: var(--danger); }
+.notice {
+  display: grid; gap: 8px; padding: 14px;
+  background: var(--card-2); border: 1px solid var(--accent); border-radius: 14px;
+}
+.notice .actions { margin-top: 2px; }
+.notice .primary { padding: 10px 16px; }
+
 .empty {
   padding: 28px 16px; text-align: center; border: 1px dashed var(--line); border-radius: 14px;
   display: grid; gap: 6px;
@@ -186,21 +218,21 @@ button:focus-visible, input:focus-visible, a:focus-visible { outline: 2px solid 
 
   // Clientes fictícios. Duração e valor seguem a lista de serviços de exemplo.
   var rows = [
-    [0, "08:00", "Carlos Mendes", "55229999000" + "1", "carlos@email.com", 1, ["Disfarçado / Degradê"], 45, 35],
-    [0, "09:30", "Marcos Alves", "552299990002", "", 2, ["Tesoura", "Sobrancelha"], 50, 40],
-    [0, "10:30", "João Pereira", "552299990003", "", 1, ["Cabelo e barba"], 90, 65],
-    [0, "14:00", "Lucas Rocha", "552299990004", "lucas@email.com", 2, ["Corte + pigmentação"], 60, 50],
-    [0, "16:30", "André Souza", "552299990005", "", 1, ["Barba"], 40, 30],
-    [1, "09:00", "Pedro Santos", "552299990006", "", 1, ["Barba"], 40, 30],
-    [1, "11:00", "Bruno Dias", "552299990007", "bruno@email.com", 2, ["Disfarçado / Degradê", "Sobrancelha"], 50, 40],
-    [1, "15:00", "Rafael Lima", "552299990008", "", 2, ["Platinado"], 120, 100],
-    [-1, "08:30", "Felipe Nunes", "552299990009", "", 1, ["Cabelo e barba"], 90, 65],
-    [-1, "13:30", "Gustavo Reis", "552299990010", "", 2, ["Tesoura"], 45, 35]
+    [0, "08:00", "Carlos Mendes", "5522999990001", "carlos@email.com", 1, ["Disfarçado / Degradê"], 45, 35],
+    [0, "09:30", "Marcos Alves", "5522999990002", "", 2, ["Tesoura", "Sobrancelha"], 50, 40],
+    [0, "10:30", "João Pereira", "5522999990003", "", 1, ["Cabelo e barba"], 90, 65],
+    [0, "14:00", "Lucas Rocha", "5522999990004", "lucas@email.com", 2, ["Corte + pigmentação"], 60, 50],
+    [0, "16:30", "André Souza", "5522999990005", "", 1, ["Barba"], 40, 30],
+    [1, "09:00", "Pedro Santos", "5522999990006", "", 1, ["Barba"], 40, 30],
+    [1, "11:00", "Bruno Dias", "5522999990007", "bruno@email.com", 2, ["Disfarçado / Degradê", "Sobrancelha"], 50, 40],
+    [1, "15:00", "Rafael Lima", "5522999990008", "", 2, ["Platinado"], 120, 100],
+    [-1, "08:30", "Felipe Nunes", "5522999990009", "", 1, ["Cabelo e barba"], 90, 65],
+    [-1, "13:30", "Gustavo Reis", "5522999990010", "", 2, ["Tesoura"], 45, 35]
   ];
   var bookings = rows.map(function (r, i) {
     var p = pros.filter(function (x) { return x.id === r[5]; })[0];
     return { id: i + 1, date: plus(r[0]), start: toMin(r[1]), end: toMin(r[1]) + r[7], name: r[2], phone: r[3], email: r[4],
-      pid: p.id, professional: p.name, services: r[6], minutes: r[7], total: r[8] };
+      pid: p.id, professional: p.name, services: r[6], minutes: r[7], total: r[8], status: "confirmed", reason: null };
   });
 
   function reply(body, status) {
@@ -215,6 +247,20 @@ button:focus-visible, input:focus-visible, a:focus-visible { outline: 2px solid 
     if (!m) return null;
     var d = new Date(+m[1], +m[2] - 1, +m[3]);
     return ymd(d) === s ? d : null;
+  }
+
+  var REASONS = [
+    { key: "pessoal", label: "Compromisso pessoal, hoje não consigo te atender", text: "surgiu um compromisso pessoal e hoje não consigo te atender" },
+    { key: "saude", label: "Imprevisto de saúde", text: "tive um imprevisto de saúde e não consigo te atender nesse horário" },
+    { key: "barbearia", label: "Imprevisto na barbearia", text: "tivemos um imprevisto na barbearia e não conseguiremos atender nesse horário" }
+  ];
+  function reasonOf(key) { return REASONS.filter(function (r) { return r.key === key; })[0] || null; }
+  function notifyLink(b) {
+    var d = parseDate(b.date), r = reasonOf(b.reason);
+    var msg = "Olá, " + b.name.split(/\s+/)[0] + "! Aqui é da Barbearia Exemplo.\n\nInfelizmente preciso cancelar o seu agendamento:\n📅 " +
+      pad(d.getDate()) + "/" + pad(d.getMonth() + 1) + "/" + d.getFullYear() + " (" + WD[d.getDay()] + ")\n🕒 " + toHm(b.start) + "\n🧾 " +
+      b.services.join(" + ") + "\n💈 " + b.professional + "\n\nMotivo: " + (r ? r.text : "precisei cancelar o seu horário") + ".\n\nPeço desculpas pelo transtorno!";
+    return "https://wa.me/" + b.phone + "?text=" + encodeURIComponent(msg);
   }
 
   var realFetch = window.fetch.bind(window);
@@ -232,6 +278,16 @@ button:focus-visible, input:focus-visible, a:focus-visible { outline: 2px solid 
       return reply({ error: "Senha incorreta." }, 401);
     }
     if (u.indexOf("logout.php") >= 0) { logged = false; return reply({ ok: true }); }
+    if (u.indexOf("cancel.php") >= 0) {
+      if (!logged) return reply({ error: "Acesso restrito ao dono." }, 401);
+      var rs = reasonOf(body.reason);
+      if (!rs) return reply({ error: "Escolha o motivo do cancelamento." }, 422);
+      var bk = bookings.filter(function (b) { return b.id === body.id; })[0];
+      if (!bk) return reply({ error: "Agendamento não encontrado." }, 404);
+      if (bk.status !== "confirmed") return reply({ error: "Esse agendamento já foi cancelado." }, 409);
+      bk.status = "cancelled"; bk.reason = rs.key;
+      return reply({ ok: true, notify_link: notifyLink(bk) });
+    }
     if (u.indexOf("agenda.php") >= 0) {
       if (!logged) return reply({ error: "Acesso restrito ao dono." }, 401);
       var q = new URLSearchParams(u.split("?")[1] || "");
@@ -240,17 +296,21 @@ button:focus-visible, input:focus-visible, a:focus-visible { outline: 2px solid 
       if (!d) return reply({ error: "Data inválida." }, 422);
       var now = new Date();
       var list = bookings.filter(function (b) { return b.date === ds; }).sort(function (a, b) { return a.start - b.start; });
-      var revenue = list.reduce(function (s, b) { return s + b.total; }, 0);
+      var live = list.filter(function (b) { return b.status === "confirmed"; });
+      var revenue = live.reduce(function (s, b) { return s + b.total; }, 0);
       return reply({
         date: ds, today: ymd(today),
         long: WD[d.getDay()] + ", " + pad(d.getDate()) + "/" + pad(d.getMonth() + 1) + "/" + d.getFullYear(),
         now_min: ds === ymd(today) ? now.getHours() * 60 + now.getMinutes() : null,
         professionals: pros,
+        cancel_reasons: REASONS.map(function (r) { return { key: r.key, label: r.label }; }),
         bookings: list.map(function (b) {
           return { id: b.id, start_min: b.start, end_min: b.end, time: toHm(b.start), end_time: toHm(b.end), minutes: b.minutes,
-            name: b.name, phone: b.phone, email: b.email, professional_id: b.pid, professional: b.professional, services: b.services, total: b.total };
+            name: b.name, phone: b.phone, email: b.email, professional_id: b.pid, professional: b.professional, services: b.services, total: b.total,
+            status: b.status, cancel_reason: b.status === "cancelled" ? reasonOf(b.reason).label : null,
+            notify_link: b.status === "cancelled" ? notifyLink(b) : null };
         }),
-        totals: { count: list.length, revenue: revenue }
+        totals: { count: live.length, revenue: revenue, cancelled: list.length - live.length }
       });
     }
     return reply({ error: "Rota desconhecida." }, 404);
@@ -269,6 +329,8 @@ const state = {
     date: "",
     filter: 0, // 0 = todos os barbeiros
     agenda: null,
+    openId: null, // cartão com o painel de cancelamento aberto
+    notice: null, // último cancelamento, com o link para avisar o cliente
 };
 let seq = 0;
 let timer;
@@ -363,20 +425,95 @@ function showLogin(message = "") {
     pw.focus();
 }
 /* ---------- Agenda do dia ---------- */
-function statusOf(b, bookings, now) {
+function statusOf(b, live, now) {
+    if (b.status === "cancelled")
+        return "cancelled";
     if (now === null)
         return "later";
     if (b.end_min <= now)
         return "done";
     if (b.start_min <= now)
         return "now";
-    const upcoming = bookings.filter((x) => x.start_min > now).sort((a, c) => a.start_min - c.start_min)[0];
+    const upcoming = live.filter((x) => x.start_min > now).sort((a, c) => a.start_min - c.start_min)[0];
     return upcoming && upcoming.start_min === b.start_min ? "next" : "later";
 }
-const STATUS_LABEL = { done: "Concluído", now: "Em atendimento", next: "Próximo" };
-function bookingCard(b, all, now) {
-    const status = statusOf(b, all, now);
-    return h("article", { class: "bk", "data-status": status }, h("div", { class: "when" }, h("strong", {}, b.time), h("small", {}, `até ${b.end_time}`)), h("div", { class: "what" }, status !== "later" ? h("span", { class: `pill ${status}` }, STATUS_LABEL[status]) : false, h("h3", {}, b.name), h("p", {}, b.services.join(" + ")), h("p", { class: "meta" }, `${b.professional} · ${b.minutes} min · `, h("b", {}, brl(b.total))), h("p", { class: "meta" }, formatPhone(b.phone), b.email ? ` · ${b.email}` : ""), h("div", { class: "actions" }, h("a", { class: "btn", href: `https://wa.me/${digits(b.phone)}`, target: "_blank", rel: "noopener" }, "WhatsApp"), h("a", { class: "btn", href: `tel:+${digits(b.phone)}` }, "Ligar"))));
+const STATUS_LABEL = {
+    done: "Concluído", now: "Em atendimento", next: "Próximo", cancelled: "Cancelado",
+};
+async function doCancel(b, reason, err, btn) {
+    if (!reason) {
+        err.textContent = "Escolha o motivo do cancelamento.";
+        return;
+    }
+    btn.disabled = true;
+    err.textContent = "";
+    try {
+        const { status, data } = await api("cancel.php", { id: b.id, reason });
+        if (status === 401) {
+            showLogin("Sua sessão terminou. Entre novamente.");
+            return;
+        }
+        if (status === 200 && data.ok && data.notify_link) {
+            state.openId = null;
+            state.notice = { name: b.name, link: data.notify_link };
+            await load();
+            document.getElementById("notice")?.scrollIntoView({ behavior: "smooth", block: "center" });
+            return;
+        }
+        err.textContent = data.error ?? "Não foi possível cancelar.";
+    }
+    catch {
+        err.textContent = "Falha de conexão. Tente novamente.";
+    }
+    btn.disabled = false;
+}
+/** Painel dentro do cartão: o dono escolhe o motivo e confirma. */
+function cancelPanel(b, a, box) {
+    let chosen = "";
+    const err = h("p", { class: "err", role: "alert" });
+    const confirmBtn = h("button", { type: "button", class: "danger", disabled: "" }, "Confirmar cancelamento");
+    const back = h("button", { type: "button", class: "ghost" }, "Voltar");
+    const group = h("div", { class: "reasons", role: "radiogroup", "aria-label": "Motivo do cancelamento" });
+    for (const r of a.cancel_reasons) {
+        const id = `reason-${b.id}-${r.key}`;
+        const radio = h("input", { type: "radio", name: `reason-${b.id}`, id, value: r.key });
+        radio.addEventListener("change", () => {
+            chosen = r.key;
+            confirmBtn.disabled = false;
+            err.textContent = "";
+        });
+        group.append(h("label", { class: "reason", for: id }, radio, h("span", {}, r.label)));
+    }
+    back.addEventListener("click", () => { state.openId = null; renderContent(box); });
+    confirmBtn.addEventListener("click", () => { void doCancel(b, chosen, err, confirmBtn); });
+    return h("div", { class: "cancel-panel" }, h("strong", {}, `Cancelar o horário de ${b.name}?`), h("p", { class: "muted" }, `${b.time} · ${b.services.join(" + ")}. O horário volta a ficar livre.`), h("p", { class: "muted" }, "Qual é o motivo? Ele vai na mensagem de aviso ao cliente."), group, err, h("div", { class: "actions" }, back, confirmBtn));
+}
+function bookingCard(b, a, box) {
+    const live = a.bookings.filter((x) => x.status === "confirmed");
+    const status = statusOf(b, live, a.now_min);
+    const cancelled = status === "cancelled";
+    const call = h("a", { class: "btn", href: `tel:+${digits(b.phone)}` }, "Ligar");
+    let actions;
+    if (cancelled) {
+        actions = h("div", { class: "actions" }, b.notify_link
+            ? h("a", { class: "btn wa", href: b.notify_link, target: "_blank", rel: "noopener" }, "Avisar o cliente pelo WhatsApp")
+            : false, call);
+    }
+    else if (state.openId === b.id) {
+        actions = cancelPanel(b, a, box);
+    }
+    else {
+        const cancelBtn = h("button", { type: "button", class: "btn warn" }, "Cancelar agendamento");
+        cancelBtn.addEventListener("click", () => { state.openId = b.id; renderContent(box); });
+        actions = h("div", { class: "actions" }, h("a", { class: "btn", href: `https://wa.me/${digits(b.phone)}`, target: "_blank", rel: "noopener" }, "WhatsApp"), call, status === "done" ? false : cancelBtn);
+    }
+    return h("article", { class: "bk", "data-status": status }, h("div", { class: "when" }, h("strong", {}, b.time), h("small", {}, `até ${b.end_time}`)), h("div", { class: "what" }, status !== "later" ? h("span", { class: `pill ${status}` }, STATUS_LABEL[status]) : false, h("h3", {}, b.name), h("p", {}, b.services.join(" + ")), h("p", { class: "meta" }, `${b.professional} · ${b.minutes} min · `, h("b", {}, brl(b.total))), h("p", { class: "meta" }, formatPhone(b.phone), b.email ? ` · ${b.email}` : ""), cancelled && b.cancel_reason ? h("p", { class: "meta" }, `Motivo: ${b.cancel_reason}`) : false, actions));
+}
+function noticeBanner(box) {
+    const n = state.notice;
+    const close = h("button", { type: "button", class: "ghost" }, "Fechar");
+    close.addEventListener("click", () => { state.notice = null; renderContent(box); });
+    return h("div", { class: "notice", id: "notice", role: "status" }, h("strong", {}, `Agendamento de ${n.name} cancelado.`), h("p", { class: "muted" }, "O horário foi liberado. Falta avisar o cliente:"), h("div", { class: "actions" }, h("a", { class: "primary", href: n.link, target: "_blank", rel: "noopener" }, "Avisar o cliente pelo WhatsApp"), close));
 }
 function renderContent(box) {
     const a = state.agenda;
@@ -384,25 +521,29 @@ function renderContent(box) {
         return;
     const isToday = a.date === a.today;
     const visible = a.bookings.filter((b) => state.filter === 0 || b.professional_id === state.filter);
-    const revenue = visible.reduce((s, b) => s + b.total, 0);
+    const liveVisible = visible.filter((b) => b.status === "confirmed");
+    const cancelledVisible = visible.length - liveVisible.length;
+    const revenue = liveVisible.reduce((s, b) => s + b.total, 0);
+    const liveCount = (id) => a.bookings.filter((b) => b.status === "confirmed" && (id === 0 || b.professional_id === id)).length;
     const chips = h("div", { class: "chips", role: "group", "aria-label": "Filtrar por barbeiro" });
     const options = [
-        { id: 0, label: `Todos (${a.bookings.length})` },
-        ...a.professionals.map((p) => ({ id: p.id, label: `${p.name} (${a.bookings.filter((b) => b.professional_id === p.id).length})` })),
+        { id: 0, label: `Todos (${liveCount(0)})` },
+        ...a.professionals.map((p) => ({ id: p.id, label: `${p.name} (${liveCount(p.id)})` })),
     ];
     for (const o of options) {
         const chip = h("button", { type: "button", class: "chip", "aria-pressed": String(state.filter === o.id) }, o.label);
-        chip.addEventListener("click", () => { state.filter = o.id; renderContent(box); });
+        chip.addEventListener("click", () => { state.filter = o.id; state.openId = null; renderContent(box); });
         chips.append(chip);
     }
     const list = visible.length
-        ? h("div", { class: "list" }, ...visible.map((b) => bookingCard(b, a.bookings, a.now_min)))
+        ? h("div", { class: "list" }, ...visible.map((b) => bookingCard(b, a, box)))
         : h("div", { class: "empty" }, h("strong", {}, "Nenhum cliente agendado"), h("p", { class: "muted" }, isToday ? "Quando alguém agendar para hoje, aparece aqui." : "Não há agendamentos neste dia."));
     const refresh = h("button", { type: "button", class: "ghost" }, "Atualizar");
     refresh.addEventListener("click", () => { void load(); });
-    const parts = [
-        h("div", { class: "tiles" }, h("div", { class: "tile" }, h("small", {}, "Clientes"), h("b", {}, String(visible.length))), h("div", { class: "tile money" }, h("small", {}, "Total do dia"), h("b", {}, brl(revenue)))),
-    ];
+    const parts = [];
+    if (state.notice)
+        parts.push(noticeBanner(box));
+    parts.push(h("div", { class: "tiles" }, h("div", { class: "tile" }, h("small", {}, "Clientes"), h("b", {}, String(liveVisible.length)), cancelledVisible ? h("span", { class: "sub" }, `${cancelledVisible} cancelado(s)`) : false), h("div", { class: "tile money" }, h("small", {}, "Total do dia"), h("b", {}, brl(revenue)))));
     if (a.professionals.length > 1)
         parts.push(chips);
     parts.push(list, h("div", { class: "foot" }, h("span", { class: "muted" }, `Atualizado às ${clock()}`), refresh));
@@ -444,6 +585,8 @@ async function showAgenda() {
     logoutBtn.hidden = false;
     state.agenda = null;
     state.filter = 0;
+    state.openId = null;
+    state.notice = null;
     state.date = state.today; // sempre abre no dia de hoje
     const input = h("input", { id: "day", type: "date", "aria-label": "Escolher dia" });
     input.value = state.date;
@@ -455,6 +598,8 @@ async function showAgenda() {
             return;
         state.date = ymd;
         state.filter = 0;
+        state.openId = null;
+        state.notice = null;
         input.value = ymd;
         todayBtn.hidden = ymd === state.today;
         void load();
@@ -466,10 +611,10 @@ async function showAgenda() {
     todayBtn.hidden = true;
     root.replaceChildren(h("div", { class: "datebar" }, h("div", { class: "dayrow" }, prev, input, next), h("div", { class: "dayhead" }, h("h2", { id: "day-title" }, "Carregando..."), todayBtn)), h("div", { id: "content", class: "main", style: "padding:0" }, h("p", { class: "muted" }, "Buscando a agenda...")));
     await load();
-    // Atualiza sozinha para o dono ver novos agendamentos sem recarregar a página.
+    // Atualiza sozinha para o dono ver novos agendamentos, sem apagar um cancelamento em andamento.
     stopRefresh();
     timer = window.setInterval(() => {
-        if (document.visibilityState === "visible")
+        if (document.visibilityState === "visible" && state.openId === null)
             void load();
     }, REFRESH_MS);
 }

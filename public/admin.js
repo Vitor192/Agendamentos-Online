@@ -8,6 +8,8 @@ const state = {
     date: "",
     filter: 0, // 0 = todos os barbeiros
     agenda: null,
+    openId: null, // cartão com o painel de cancelamento aberto
+    notice: null, // último cancelamento, com o link para avisar o cliente
 };
 let seq = 0;
 let timer;
@@ -102,20 +104,95 @@ function showLogin(message = "") {
     pw.focus();
 }
 /* ---------- Agenda do dia ---------- */
-function statusOf(b, bookings, now) {
+function statusOf(b, live, now) {
+    if (b.status === "cancelled")
+        return "cancelled";
     if (now === null)
         return "later";
     if (b.end_min <= now)
         return "done";
     if (b.start_min <= now)
         return "now";
-    const upcoming = bookings.filter((x) => x.start_min > now).sort((a, c) => a.start_min - c.start_min)[0];
+    const upcoming = live.filter((x) => x.start_min > now).sort((a, c) => a.start_min - c.start_min)[0];
     return upcoming && upcoming.start_min === b.start_min ? "next" : "later";
 }
-const STATUS_LABEL = { done: "Concluído", now: "Em atendimento", next: "Próximo" };
-function bookingCard(b, all, now) {
-    const status = statusOf(b, all, now);
-    return h("article", { class: "bk", "data-status": status }, h("div", { class: "when" }, h("strong", {}, b.time), h("small", {}, `até ${b.end_time}`)), h("div", { class: "what" }, status !== "later" ? h("span", { class: `pill ${status}` }, STATUS_LABEL[status]) : false, h("h3", {}, b.name), h("p", {}, b.services.join(" + ")), h("p", { class: "meta" }, `${b.professional} · ${b.minutes} min · `, h("b", {}, brl(b.total))), h("p", { class: "meta" }, formatPhone(b.phone), b.email ? ` · ${b.email}` : ""), h("div", { class: "actions" }, h("a", { class: "btn", href: `https://wa.me/${digits(b.phone)}`, target: "_blank", rel: "noopener" }, "WhatsApp"), h("a", { class: "btn", href: `tel:+${digits(b.phone)}` }, "Ligar"))));
+const STATUS_LABEL = {
+    done: "Concluído", now: "Em atendimento", next: "Próximo", cancelled: "Cancelado",
+};
+async function doCancel(b, reason, err, btn) {
+    if (!reason) {
+        err.textContent = "Escolha o motivo do cancelamento.";
+        return;
+    }
+    btn.disabled = true;
+    err.textContent = "";
+    try {
+        const { status, data } = await api("cancel.php", { id: b.id, reason });
+        if (status === 401) {
+            showLogin("Sua sessão terminou. Entre novamente.");
+            return;
+        }
+        if (status === 200 && data.ok && data.notify_link) {
+            state.openId = null;
+            state.notice = { name: b.name, link: data.notify_link };
+            await load();
+            document.getElementById("notice")?.scrollIntoView({ behavior: "smooth", block: "center" });
+            return;
+        }
+        err.textContent = data.error ?? "Não foi possível cancelar.";
+    }
+    catch {
+        err.textContent = "Falha de conexão. Tente novamente.";
+    }
+    btn.disabled = false;
+}
+/** Painel dentro do cartão: o dono escolhe o motivo e confirma. */
+function cancelPanel(b, a, box) {
+    let chosen = "";
+    const err = h("p", { class: "err", role: "alert" });
+    const confirmBtn = h("button", { type: "button", class: "danger", disabled: "" }, "Confirmar cancelamento");
+    const back = h("button", { type: "button", class: "ghost" }, "Voltar");
+    const group = h("div", { class: "reasons", role: "radiogroup", "aria-label": "Motivo do cancelamento" });
+    for (const r of a.cancel_reasons) {
+        const id = `reason-${b.id}-${r.key}`;
+        const radio = h("input", { type: "radio", name: `reason-${b.id}`, id, value: r.key });
+        radio.addEventListener("change", () => {
+            chosen = r.key;
+            confirmBtn.disabled = false;
+            err.textContent = "";
+        });
+        group.append(h("label", { class: "reason", for: id }, radio, h("span", {}, r.label)));
+    }
+    back.addEventListener("click", () => { state.openId = null; renderContent(box); });
+    confirmBtn.addEventListener("click", () => { void doCancel(b, chosen, err, confirmBtn); });
+    return h("div", { class: "cancel-panel" }, h("strong", {}, `Cancelar o horário de ${b.name}?`), h("p", { class: "muted" }, `${b.time} · ${b.services.join(" + ")}. O horário volta a ficar livre.`), h("p", { class: "muted" }, "Qual é o motivo? Ele vai na mensagem de aviso ao cliente."), group, err, h("div", { class: "actions" }, back, confirmBtn));
+}
+function bookingCard(b, a, box) {
+    const live = a.bookings.filter((x) => x.status === "confirmed");
+    const status = statusOf(b, live, a.now_min);
+    const cancelled = status === "cancelled";
+    const call = h("a", { class: "btn", href: `tel:+${digits(b.phone)}` }, "Ligar");
+    let actions;
+    if (cancelled) {
+        actions = h("div", { class: "actions" }, b.notify_link
+            ? h("a", { class: "btn wa", href: b.notify_link, target: "_blank", rel: "noopener" }, "Avisar o cliente pelo WhatsApp")
+            : false, call);
+    }
+    else if (state.openId === b.id) {
+        actions = cancelPanel(b, a, box);
+    }
+    else {
+        const cancelBtn = h("button", { type: "button", class: "btn warn" }, "Cancelar agendamento");
+        cancelBtn.addEventListener("click", () => { state.openId = b.id; renderContent(box); });
+        actions = h("div", { class: "actions" }, h("a", { class: "btn", href: `https://wa.me/${digits(b.phone)}`, target: "_blank", rel: "noopener" }, "WhatsApp"), call, status === "done" ? false : cancelBtn);
+    }
+    return h("article", { class: "bk", "data-status": status }, h("div", { class: "when" }, h("strong", {}, b.time), h("small", {}, `até ${b.end_time}`)), h("div", { class: "what" }, status !== "later" ? h("span", { class: `pill ${status}` }, STATUS_LABEL[status]) : false, h("h3", {}, b.name), h("p", {}, b.services.join(" + ")), h("p", { class: "meta" }, `${b.professional} · ${b.minutes} min · `, h("b", {}, brl(b.total))), h("p", { class: "meta" }, formatPhone(b.phone), b.email ? ` · ${b.email}` : ""), cancelled && b.cancel_reason ? h("p", { class: "meta" }, `Motivo: ${b.cancel_reason}`) : false, actions));
+}
+function noticeBanner(box) {
+    const n = state.notice;
+    const close = h("button", { type: "button", class: "ghost" }, "Fechar");
+    close.addEventListener("click", () => { state.notice = null; renderContent(box); });
+    return h("div", { class: "notice", id: "notice", role: "status" }, h("strong", {}, `Agendamento de ${n.name} cancelado.`), h("p", { class: "muted" }, "O horário foi liberado. Falta avisar o cliente:"), h("div", { class: "actions" }, h("a", { class: "primary", href: n.link, target: "_blank", rel: "noopener" }, "Avisar o cliente pelo WhatsApp"), close));
 }
 function renderContent(box) {
     const a = state.agenda;
@@ -123,25 +200,29 @@ function renderContent(box) {
         return;
     const isToday = a.date === a.today;
     const visible = a.bookings.filter((b) => state.filter === 0 || b.professional_id === state.filter);
-    const revenue = visible.reduce((s, b) => s + b.total, 0);
+    const liveVisible = visible.filter((b) => b.status === "confirmed");
+    const cancelledVisible = visible.length - liveVisible.length;
+    const revenue = liveVisible.reduce((s, b) => s + b.total, 0);
+    const liveCount = (id) => a.bookings.filter((b) => b.status === "confirmed" && (id === 0 || b.professional_id === id)).length;
     const chips = h("div", { class: "chips", role: "group", "aria-label": "Filtrar por barbeiro" });
     const options = [
-        { id: 0, label: `Todos (${a.bookings.length})` },
-        ...a.professionals.map((p) => ({ id: p.id, label: `${p.name} (${a.bookings.filter((b) => b.professional_id === p.id).length})` })),
+        { id: 0, label: `Todos (${liveCount(0)})` },
+        ...a.professionals.map((p) => ({ id: p.id, label: `${p.name} (${liveCount(p.id)})` })),
     ];
     for (const o of options) {
         const chip = h("button", { type: "button", class: "chip", "aria-pressed": String(state.filter === o.id) }, o.label);
-        chip.addEventListener("click", () => { state.filter = o.id; renderContent(box); });
+        chip.addEventListener("click", () => { state.filter = o.id; state.openId = null; renderContent(box); });
         chips.append(chip);
     }
     const list = visible.length
-        ? h("div", { class: "list" }, ...visible.map((b) => bookingCard(b, a.bookings, a.now_min)))
+        ? h("div", { class: "list" }, ...visible.map((b) => bookingCard(b, a, box)))
         : h("div", { class: "empty" }, h("strong", {}, "Nenhum cliente agendado"), h("p", { class: "muted" }, isToday ? "Quando alguém agendar para hoje, aparece aqui." : "Não há agendamentos neste dia."));
     const refresh = h("button", { type: "button", class: "ghost" }, "Atualizar");
     refresh.addEventListener("click", () => { void load(); });
-    const parts = [
-        h("div", { class: "tiles" }, h("div", { class: "tile" }, h("small", {}, "Clientes"), h("b", {}, String(visible.length))), h("div", { class: "tile money" }, h("small", {}, "Total do dia"), h("b", {}, brl(revenue)))),
-    ];
+    const parts = [];
+    if (state.notice)
+        parts.push(noticeBanner(box));
+    parts.push(h("div", { class: "tiles" }, h("div", { class: "tile" }, h("small", {}, "Clientes"), h("b", {}, String(liveVisible.length)), cancelledVisible ? h("span", { class: "sub" }, `${cancelledVisible} cancelado(s)`) : false), h("div", { class: "tile money" }, h("small", {}, "Total do dia"), h("b", {}, brl(revenue)))));
     if (a.professionals.length > 1)
         parts.push(chips);
     parts.push(list, h("div", { class: "foot" }, h("span", { class: "muted" }, `Atualizado às ${clock()}`), refresh));
@@ -183,6 +264,8 @@ async function showAgenda() {
     logoutBtn.hidden = false;
     state.agenda = null;
     state.filter = 0;
+    state.openId = null;
+    state.notice = null;
     state.date = state.today; // sempre abre no dia de hoje
     const input = h("input", { id: "day", type: "date", "aria-label": "Escolher dia" });
     input.value = state.date;
@@ -194,6 +277,8 @@ async function showAgenda() {
             return;
         state.date = ymd;
         state.filter = 0;
+        state.openId = null;
+        state.notice = null;
         input.value = ymd;
         todayBtn.hidden = ymd === state.today;
         void load();
@@ -205,10 +290,10 @@ async function showAgenda() {
     todayBtn.hidden = true;
     root.replaceChildren(h("div", { class: "datebar" }, h("div", { class: "dayrow" }, prev, input, next), h("div", { class: "dayhead" }, h("h2", { id: "day-title" }, "Carregando..."), todayBtn)), h("div", { id: "content", class: "main", style: "padding:0" }, h("p", { class: "muted" }, "Buscando a agenda...")));
     await load();
-    // Atualiza sozinha para o dono ver novos agendamentos sem recarregar a página.
+    // Atualiza sozinha para o dono ver novos agendamentos, sem apagar um cancelamento em andamento.
     stopRefresh();
     timer = window.setInterval(() => {
-        if (document.visibilityState === "visible")
+        if (document.visibilityState === "visible" && state.openId === null)
             void load();
     }, REFRESH_MS);
 }

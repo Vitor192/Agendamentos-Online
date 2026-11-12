@@ -46,7 +46,7 @@ O e-mail aparece na mensagem quando o cliente o informa.
 
 ### Área do dono
 
-Tela protegida por senha, só para o dono da barbearia, em `/admin/`. Na tela principal de agendamento há o botão **Painel do profissional** (canto superior direito), que abre essa área; quem não tem a senha não passa da tela de login.
+Tela protegida por senha, só para o dono da barbearia, em `/admin/`. Na tela principal de agendamento há o botão **Painel do profissional** (canto superior direito), que abre essa área **dentro da própria página**, em uma tela por cima do agendamento (um `iframe`), sem trocar de endereço. O botão "← Voltar ao agendamento" ou o **Sair** fecham essa tela e voltam ao agendamento; ao reabrir, a senha é pedida de novo. Quem não tem a senha não passa da tela de login. Abrindo `/admin/` direto no navegador, o **Sair** continua levando à página de agendamento.
 
 - **Abre sempre no dia de hoje**, com os clientes na ordem dos horários: nome, serviços, barbeiro, duração, valor, WhatsApp e e-mail.
 - Quando é hoje, cada cliente recebe uma etiqueta: **Concluído**, **Em atendimento** ou **Próximo**.

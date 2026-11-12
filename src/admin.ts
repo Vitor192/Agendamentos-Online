@@ -33,6 +33,9 @@ const flashEl = document.getElementById("flash") as HTMLElement;
 // Vazio = fica na tela de senha.
 const homeMeta = document.querySelector<HTMLMetaElement>('meta[name="home-url"]');
 const HOME = homeMeta ? homeMeta.content : "../";
+// Quando a área do dono é aberta dentro da página de agendamento (quadro "owner-frame"),
+// o Sair avisa a página de fora para fechar o quadro, em vez de trocar de página.
+const EMBEDDED = window.name === "owner-frame" && window.parent !== window;
 
 const state = {
   today: "",
@@ -129,7 +132,7 @@ function showLogin(message = ""): void {
     h("label", { class: "field", for: "pw" }, h("span", {}, "Senha"), pw),
     error,
     submit,
-    HOME ? h("a", { class: "back-link", href: HOME }, "← Ir para a página de agendamento") : false,
+    HOME && !EMBEDDED ? h("a", { class: "back-link", href: HOME }, "← Ir para a página de agendamento") : false,
   );
   form.addEventListener("submit", (ev) => {
     ev.preventDefault();
@@ -422,6 +425,12 @@ logoutBtn.addEventListener("click", () => {
       const { status, data } = await api<ApiReply>("logout.php", {});
       if (status === 200 && data.ok) {
         stopRefresh();
+        if (EMBEDDED) {
+          window.parent.postMessage({ type: "owner-exit" }, "*");
+          logoutBtn.disabled = false;
+          showLogin();
+          return;
+        }
         if (HOME) {
           // Dentro de uma prévia (iframe) o navegador pode bloquear a troca de página: abre em nova aba.
           if (window.top !== window.self) {

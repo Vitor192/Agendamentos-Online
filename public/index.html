@@ -29,6 +29,14 @@
       <button type="button" id="next" class="primary" disabled>Próximo</button>
     </nav>
   </div>
+
+  <!-- Painel do profissional: abre aqui dentro, por cima do agendamento -->
+  <div id="owner-overlay" class="overlay" hidden role="dialog" aria-modal="true" aria-label="Painel do profissional">
+    <div class="overlay-bar">
+      <button type="button" id="owner-close" class="ghost">← Voltar ao agendamento</button>
+    </div>
+    <iframe id="owner-frame" name="owner-frame" title="Painel do profissional"></iframe>
+  </div>
   <script src="app.js"></script>
 </body>
 </html>

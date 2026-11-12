@@ -8,6 +8,9 @@ const flashEl = document.getElementById("flash");
 // Vazio = fica na tela de senha.
 const homeMeta = document.querySelector('meta[name="home-url"]');
 const HOME = homeMeta ? homeMeta.content : "../";
+// Quando a área do dono é aberta dentro da página de agendamento (quadro "owner-frame"),
+// o Sair avisa a página de fora para fechar o quadro, em vez de trocar de página.
+const EMBEDDED = window.name === "owner-frame" && window.parent !== window;
 const state = {
     today: "",
     date: "",
@@ -79,7 +82,7 @@ function showLogin(message = "") {
     const pw = h("input", { id: "pw", name: "password", type: "password", autocomplete: "current-password", required: "" });
     const error = h("p", { class: "err", role: "alert" }, message);
     const submit = h("button", { type: "submit", class: "primary" }, "Entrar");
-    const form = h("form", { class: "panel", novalidate: "" }, h("h2", {}, "Entrar na área do dono"), h("label", { class: "field", for: "pw" }, h("span", {}, "Senha"), pw), error, submit, HOME ? h("a", { class: "back-link", href: HOME }, "← Ir para a página de agendamento") : false);
+    const form = h("form", { class: "panel", novalidate: "" }, h("h2", {}, "Entrar na área do dono"), h("label", { class: "field", for: "pw" }, h("span", {}, "Senha"), pw), error, submit, HOME && !EMBEDDED ? h("a", { class: "back-link", href: HOME }, "← Ir para a página de agendamento") : false);
     form.addEventListener("submit", (ev) => {
         ev.preventDefault();
         if (!pw.value) {
@@ -313,6 +316,12 @@ logoutBtn.addEventListener("click", () => {
             const { status, data } = await api("logout.php", {});
             if (status === 200 && data.ok) {
                 stopRefresh();
+                if (EMBEDDED) {
+                    window.parent.postMessage({ type: "owner-exit" }, "*");
+                    logoutBtn.disabled = false;
+                    showLogin();
+                    return;
+                }
                 if (HOME) {
                     // Dentro de uma prévia (iframe) o navegador pode bloquear a troca de página: abre em nova aba.
                     if (window.top !== window.self) {

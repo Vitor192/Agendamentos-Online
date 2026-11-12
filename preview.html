@@ -194,6 +194,14 @@ button:focus-visible, input:focus-visible, a:focus-visible, .svc:has(input:focus
   outline: 2px solid var(--accent); outline-offset: 2px;
 }
 
+/* Painel do profissional aberto dentro da página */
+.no-scroll { overflow: hidden; }
+.overlay { position: fixed; inset: 0; z-index: 50; display: flex; flex-direction: column; background: var(--bg); }
+.overlay[hidden] { display: none; }
+.overlay-bar { flex: none; padding: 10px 16px; border-bottom: 1px solid var(--line); }
+.overlay-bar button { padding: 8px 14px; font-weight: 600; }
+.overlay iframe { flex: 1; width: 100%; border: 0; background: var(--bg); }
+
 .top, .progress, .stage, .flash, .nav { padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
 .preview-note { margin: 0; padding: 6px 16px; border-bottom: 1px dashed var(--line); color: var(--muted); font-size: .72rem; text-align: center; }
 </style>
@@ -220,6 +228,12 @@ button:focus-visible, input:focus-visible, a:focus-visible, .svc:has(input:focus
       <button type="button" id="back" class="ghost" disabled>Voltar</button>
       <button type="button" id="next" class="primary" disabled>Próximo</button>
     </nav>
+  </div>
+<div id="owner-overlay" class="overlay" hidden role="dialog" aria-modal="true" aria-label="Painel do profissional">
+    <div class="overlay-bar">
+      <button type="button" id="owner-close" class="ghost">← Voltar ao agendamento</button>
+    </div>
+    <iframe id="owner-frame" name="owner-frame" title="Painel do profissional"></iframe>
   </div>
 <script>
 // API simulada no navegador: reproduz as regras de api/info, slots, book, my e cancel do PHP.
@@ -922,6 +936,43 @@ function showMine() {
     if (validName(state.name) && validPhone(state.phone))
         void run();
 }
+/* ---------- Painel do profissional dentro desta página ---------- */
+function setupOwnerPanel() {
+    const link = document.getElementById("owner-link");
+    const overlay = document.getElementById("owner-overlay");
+    const frame = document.getElementById("owner-frame");
+    const closeBtn = document.getElementById("owner-close");
+    if (!link || !overlay || !frame || !closeBtn)
+        return;
+    const url = link.href;
+    const open = () => {
+        const doc = window.OWNER_SRCDOC; // só nas prévias
+        if (doc)
+            frame.srcdoc = doc;
+        else
+            frame.src = url;
+        overlay.hidden = false;
+        document.body.classList.add("no-scroll");
+        closeBtn.focus();
+    };
+    const close = () => {
+        overlay.hidden = true;
+        document.body.classList.remove("no-scroll");
+        frame.removeAttribute("srcdoc");
+        frame.src = "about:blank"; // ao reabrir, a sessão é conferida de novo
+        link.focus();
+    };
+    link.addEventListener("click", (ev) => { ev.preventDefault(); open(); });
+    closeBtn.addEventListener("click", close);
+    document.addEventListener("keydown", (ev) => { if (ev.key === "Escape" && !overlay.hidden)
+        close(); });
+    window.addEventListener("message", (ev) => {
+        const data = ev.data;
+        if (ev.source === frame.contentWindow && data && data.type === "owner-exit")
+            close();
+    });
+}
+setupOwnerPanel();
 /* ---------- Início ---------- */
 async function init() {
     const res = await fetch("api/info.php");

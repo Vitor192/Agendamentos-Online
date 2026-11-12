@@ -505,6 +505,43 @@ function showMine() {
     if (validName(state.name) && validPhone(state.phone))
         void run();
 }
+/* ---------- Painel do profissional dentro desta página ---------- */
+function setupOwnerPanel() {
+    const link = document.getElementById("owner-link");
+    const overlay = document.getElementById("owner-overlay");
+    const frame = document.getElementById("owner-frame");
+    const closeBtn = document.getElementById("owner-close");
+    if (!link || !overlay || !frame || !closeBtn)
+        return;
+    const url = link.href;
+    const open = () => {
+        const doc = window.OWNER_SRCDOC; // só nas prévias
+        if (doc)
+            frame.srcdoc = doc;
+        else
+            frame.src = url;
+        overlay.hidden = false;
+        document.body.classList.add("no-scroll");
+        closeBtn.focus();
+    };
+    const close = () => {
+        overlay.hidden = true;
+        document.body.classList.remove("no-scroll");
+        frame.removeAttribute("srcdoc");
+        frame.src = "about:blank"; // ao reabrir, a sessão é conferida de novo
+        link.focus();
+    };
+    link.addEventListener("click", (ev) => { ev.preventDefault(); open(); });
+    closeBtn.addEventListener("click", close);
+    document.addEventListener("keydown", (ev) => { if (ev.key === "Escape" && !overlay.hidden)
+        close(); });
+    window.addEventListener("message", (ev) => {
+        const data = ev.data;
+        if (ev.source === frame.contentWindow && data && data.type === "owner-exit")
+            close();
+    });
+}
+setupOwnerPanel();
 /* ---------- Início ---------- */
 async function init() {
     const res = await fetch("api/info.php");

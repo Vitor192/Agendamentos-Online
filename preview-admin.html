@@ -515,7 +515,7 @@ function bookingCard(b, a, box) {
     else {
         const cancelBtn = h("button", { type: "button", class: "btn warn" }, "Cancelar agendamento");
         cancelBtn.addEventListener("click", () => { state.openId = b.id; renderContent(box); });
-        actions = h("div", { class: "actions" }, h("a", { class: "btn", href: `https://wa.me/${digits(b.phone)}`, target: "_blank", rel: "noopener" }, "WhatsApp"), call, status === "done" ? false : cancelBtn);
+        actions = h("div", { class: "actions" }, h("a", { class: "btn", href: `https://wa.me/${digits(b.phone)}`, target: "_blank", rel: "noopener" }, "WhatsApp"), call, cancelBtn);
     }
     return h("article", { class: "bk", "data-status": status }, h("div", { class: "when" }, h("strong", {}, b.time), h("small", {}, `até ${b.end_time}`)), h("div", { class: "what" }, status !== "later" ? h("span", { class: `pill ${status}` }, STATUS_LABEL[status]) : false, h("h3", {}, b.name), h("p", {}, b.services.join(" + ")), h("p", { class: "meta" }, `${b.professional} · ${b.minutes} min · `, h("b", {}, brl(b.total))), h("p", { class: "meta" }, formatPhone(b.phone), b.email ? ` · ${b.email}` : ""), cancelled && b.cancel_reason ? h("p", { class: "meta" }, `Motivo: ${b.cancel_reason}`) : false, actions));
 }
@@ -640,6 +640,15 @@ logoutBtn.addEventListener("click", () => {
             if (status === 200 && data.ok) {
                 stopRefresh();
                 if (HOME) {
+                    // Dentro de uma prévia (iframe) o navegador pode bloquear a troca de página: abre em nova aba.
+                    if (window.top !== window.self) {
+                        if (!window.open(HOME, "_blank", "noopener"))
+                            showLogin("Você saiu. Use o link abaixo para voltar ao agendamento.");
+                        else
+                            showLogin();
+                        logoutBtn.disabled = false;
+                        return;
+                    }
                     window.location.assign(HOME);
                     return;
                 }

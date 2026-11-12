@@ -32,7 +32,8 @@ if ($row['status'] !== 'confirmed') {
     json_response(['error' => 'Esse agendamento já foi cancelado.'], 409);
 }
 $today = date('Y-m-d');
-if ($row['date'] < $today || ($row['date'] === $today && (int)$row['end_min'] <= now_min())) {
+// Hoje o dono ainda pode cancelar (ex.: cliente que não apareceu); dias anteriores ficam só no histórico.
+if ($row['date'] < $today) {
     json_response(['error' => 'Esse atendimento já passou e não pode ser cancelado.'], 422);
 }
 

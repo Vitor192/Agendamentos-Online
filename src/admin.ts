@@ -255,7 +255,7 @@ function bookingCard(b: AdminBooking, a: Agenda, box: HTMLElement): HTMLElement 
     actions = h("div", { class: "actions" },
       h("a", { class: "btn", href: `https://wa.me/${digits(b.phone)}`, target: "_blank", rel: "noopener" }, "WhatsApp"),
       call,
-      status === "done" ? false : cancelBtn,
+      cancelBtn,
     );
   }
 
@@ -423,6 +423,13 @@ logoutBtn.addEventListener("click", () => {
       if (status === 200 && data.ok) {
         stopRefresh();
         if (HOME) {
+          // Dentro de uma prévia (iframe) o navegador pode bloquear a troca de página: abre em nova aba.
+          if (window.top !== window.self) {
+            if (!window.open(HOME, "_blank", "noopener")) showLogin("Você saiu. Use o link abaixo para voltar ao agendamento.");
+            else showLogin();
+            logoutBtn.disabled = false;
+            return;
+          }
           window.location.assign(HOME);
           return;
         }

@@ -83,7 +83,7 @@ Motivo: surgiu um compromisso pessoal e hoje não consigo te atender.
 Peço desculpas pelo transtorno!
 ```
 
-O cartão cancelado continua na lista, riscado e com o motivo, e **mantém o botão de avisar**. Assim o dono pode avisar o cliente depois, se não fizer na hora. Cancelados não entram na contagem de clientes nem no total do dia. Um atendimento que já passou não pode ser cancelado.
+O cartão cancelado continua na lista, riscado e com o motivo, e **mantém o botão de avisar**. Assim o dono pode avisar o cliente depois, se não fizer na hora. Cancelados não entram na contagem de clientes nem no total do dia. O botão de cancelar aparece em todo agendamento ativo de hoje e dos próximos dias (inclusive de horário que já passou hoje, para o cliente que faltou). Dias anteriores ficam só no histórico.
 
 Os motivos e os textos da mensagem ficam em `cancel_reasons` no `config.php` e podem ser trocados ou ampliados. Se `public_url` estiver preenchido, a mensagem inclui o link para o cliente marcar outro horário.
 
@@ -178,7 +178,7 @@ data/               banco SQLite, criado automaticamente (fora do Git)
 | `api/admin/login.php` | POST (JSON) | `password` | `ok`. Erro 401 se a senha estiver errada e 429 após muitas tentativas |
 | `api/admin/logout.php` | POST | nenhum | `ok` |
 | `api/admin/agenda.php` | GET | `date` (opcional, padrão hoje) | `bookings` (inclui cancelados), `totals`, `professionals`, `cancel_reasons`. Erro 401 sem login |
-| `api/admin/cancel.php` | POST (JSON) | `id`, `reason` | `ok`, `notify_link` (WhatsApp do cliente). Erros: 401 sem login, 409 se já cancelado, 422 se já passou |
+| `api/admin/cancel.php` | POST (JSON) | `id`, `reason` | `ok`, `notify_link` (WhatsApp do cliente). Erros: 401 sem login, 409 se já cancelado, 422 se for de um dia anterior |
 
 ## Como rodar
 
